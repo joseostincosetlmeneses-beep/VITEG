@@ -13,6 +13,14 @@ const loginSchema = z.object({
   password: z.string().min(8)
 });
 
+const registerSchema = z.object({
+  firstName: z.string().trim().min(2).max(80),
+  lastName: z.string().trim().min(2).max(100),
+  email: z.email().transform((value) => value.toLowerCase()),
+  phone: z.string().trim().min(7).max(20),
+  password: z.string().min(8).max(72)
+});
+
 function toSessionUser(user: any): SessionUser {
   return {
     id: String(user._id),
@@ -24,6 +32,31 @@ function toSessionUser(user: any): SessionUser {
 }
 
 export const authRouter = Router();
+
+authRouter.post(
+  "/register",
+  asyncHandler(async (request, response) => {
+    const input = registerSchema.parse(request.body);
+    const existing = await User.exists({ tenantId: "default", email: input.email });
+    if (existing) throw new AppError(409, "Ya existe una cuenta con este correo");
+
+    await User.create({
+      tenantId: "default",
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      phone: input.phone,
+      passwordHash: await bcrypt.hash(input.password, 12),
+      role: "DRIVER",
+      status: "PENDING"
+    });
+
+    response.status(201).json({
+      data: { email: input.email, status: "PENDING" },
+      message: "Registro enviado. Un administrador debe activar tu cuenta."
+    });
+  })
+);
 
 authRouter.post(
   "/login",

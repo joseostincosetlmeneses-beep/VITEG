@@ -11,6 +11,7 @@ import {
   StatusBar as NativeStatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -93,17 +94,41 @@ export default function App() {
 }
 
 function Login({ onSuccess }: { onSuccess: (user: SessionUser) => void }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("admin@viteg.mx");
   const [password, setPassword] = useState("Viteg2026!");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
     setLoading(true);
     try {
-      onSuccess(await api.login(email, password));
+      if (mode === "login") {
+        onSuccess(await api.login(email, password));
+        return;
+      }
+      if (!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim()) {
+        throw new Error("Completa todos los campos");
+      }
+      if (password.length < 8) {
+        throw new Error("La contraseña debe tener al menos 8 caracteres");
+      }
+      if (password !== confirmPassword) {
+        throw new Error("Las contraseñas no coinciden");
+      }
+      await api.register({ firstName, lastName, phone, email, password });
+      Alert.alert(
+        "Registro enviado",
+        "Tu cuenta quedó pendiente de autorización. Un administrador debe activarla antes de que puedas iniciar sesión."
+      );
+      setMode("login");
+      setConfirmPassword("");
     } catch (error) {
       Alert.alert(
-        "No se pudo iniciar sesión",
+        mode === "login" ? "No se pudo iniciar sesión" : "No se pudo completar el registro",
         error instanceof Error ? error.message : String(error)
       );
     } finally {
@@ -125,11 +150,37 @@ function Login({ onSuccess }: { onSuccess: (user: SessionUser) => void }) {
           <View style={styles.logoCard}>
             <Image source={logo} resizeMode="contain" style={styles.loginLogo} />
           </View>
-          <Text style={styles.welcome}>Bienvenido</Text>
+          <Text style={styles.welcome}>
+            {mode === "login" ? "Bienvenido" : "Crea tu cuenta"}
+          </Text>
           <Text style={styles.loginSubtitle}>
-            Gestiona tus rutas y entregas desde VITEG
+            {mode === "login"
+              ? "Gestiona tus rutas y entregas desde VITEG"
+              : "Regístrate como repartidor para solicitar acceso"}
           </Text>
           <View style={styles.form}>
+            {mode === "register" && (
+              <>
+                <Field
+                  label="Nombre"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  autoCapitalize="words"
+                />
+                <Field
+                  label="Apellidos"
+                  value={lastName}
+                  onChangeText={setLastName}
+                  autoCapitalize="words"
+                />
+                <Field
+                  label="Teléfono"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                />
+              </>
+            )}
             <Field
               label="Correo electrónico"
               value={email}
@@ -137,23 +188,88 @@ function Login({ onSuccess }: { onSuccess: (user: SessionUser) => void }) {
               autoCapitalize="none"
               keyboardType="email-address"
             />
-            <Field
+            <SecureField
               label="Contraseña"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
             />
+            {mode === "register" && (
+              <SecureField
+                label="Confirmar contraseña"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+            )}
             <Button
-              label={loading ? "Ingresando…" : "Iniciar sesión"}
-              icon="log-in-outline"
+              label={loading
+                ? mode === "login" ? "Ingresando…" : "Registrando…"
+                : mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
+              icon={mode === "login" ? "log-in-outline" : "person-add-outline"}
               disabled={loading}
               onPress={() => void submit()}
             />
+          </View>
+          <View style={styles.accountPrompt}>
+            <Text style={styles.accountText}>
+              {mode === "login" ? "¿Aún no tienes cuenta?" : "¿Ya tienes una cuenta?"}
+            </Text>
+            <Pressable
+              onPress={() => {
+                setMode(mode === "login" ? "register" : "login");
+                setPassword("");
+                setConfirmPassword("");
+              }}
+            >
+              <Text style={styles.accountAction}>
+                {mode === "login" ? "Regístrate" : "Inicia sesión"}
+              </Text>
+            </Pressable>
           </View>
           <Text style={styles.mobileCaption}>Aplicación móvil para Android</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function SecureField({
+  label,
+  value,
+  onChangeText
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <View style={styles.secureGroup}>
+      <Text style={styles.secureLabel}>{label}</Text>
+      <View style={styles.secureInputWrap}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={!visible}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Escribe tu contraseña"
+          placeholderTextColor="#9FB3C8"
+          style={styles.secureInput}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+          onPress={() => setVisible((current) => !current)}
+          style={styles.eyeButton}
+        >
+          <Ionicons
+            name={visible ? "eye-off-outline" : "eye-outline"}
+            size={22}
+            color={colors.muted}
+          />
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -291,6 +407,38 @@ const styles = StyleSheet.create({
   welcome: { fontSize: 30, fontWeight: "900", color: colors.ink },
   loginSubtitle: { fontSize: 15, lineHeight: 22, color: colors.muted, marginTop: 7 },
   form: { gap: 16, marginTop: 28 },
+  secureGroup: { gap: 7 },
+  secureLabel: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  secureInputWrap: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    backgroundColor: "white"
+  },
+  secureInput: {
+    flex: 1,
+    minHeight: 48,
+    paddingLeft: 14,
+    color: colors.ink
+  },
+  eyeButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  accountPrompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 22
+  },
+  accountText: { color: colors.muted, fontSize: 13 },
+  accountAction: { color: colors.blue, fontSize: 13, fontWeight: "900" },
   mobileCaption: {
     color: colors.muted,
     fontSize: 12,

@@ -28,6 +28,18 @@ export const api = {
     await AsyncStorage.setItem(TOKEN_KEY, result.token);
     return result.user;
   },
+  async register(input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    password: string;
+  }): Promise<{ email: string; status: "PENDING" }> {
+    return request<{ email: string; status: "PENDING" }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
   async restore(): Promise<SessionUser | null> {
     if (!(await AsyncStorage.getItem(TOKEN_KEY))) return null;
     try {

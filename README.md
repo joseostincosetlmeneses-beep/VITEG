@@ -5,6 +5,7 @@ Sistema independiente de gestión y seguimiento de reparto para purificadoras y 
 ## Qué incluye esta versión
 
 - Autenticación JWT y control de acceso por rol.
+- Registro público de repartidores con autorización administrativa posterior.
 - Administración de usuarios y repartidores.
 - Clientes separados de sus múltiples domicilios.
 - Productos con prioridad logística y zonas geográficas.
