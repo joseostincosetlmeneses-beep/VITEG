@@ -1,0 +1,12 @@
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - viteg_mongo:/data/db
+
+volumes:
+  viteg_mongo:
+

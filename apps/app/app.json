@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "VITEG",
+    "slug": "viteg",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "mx.viteg.distribucion",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
+

@@ -1,0 +1,30 @@
+{
+  "name": "viteg",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run build -w @viteg/shared && concurrently -n api,app -c blue,green \"npm run dev -w @viteg/api\" \"npm run start -w @viteg/app\"",
+    "dev:api": "npm run dev -w @viteg/api",
+    "dev:app": "npm run start -w @viteg/app",
+    "build": "npm run build -w @viteg/shared && npm run build -w @viteg/api && npm run typecheck -w @viteg/app",
+    "test": "npm run test -w @viteg/api",
+    "seed": "npm run seed -w @viteg/api"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "concurrently": "^9.2.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
+
