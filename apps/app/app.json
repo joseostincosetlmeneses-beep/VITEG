@@ -3,15 +3,18 @@
     "name": "VITEG",
     "slug": "viteg",
     "version": "0.1.0",
-    "orientation": "default",
+    "platforms": ["android"],
+    "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/viteg-app-icon.png",
     "assetBundlePatterns": ["**/*"],
     "android": {
       "package": "mx.viteg.distribucion",
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
-    },
-    "web": {
-      "bundler": "metro"
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/viteg-app-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
     }
   }
 }

@@ -5,7 +5,7 @@
 VITEG es un producto independiente orientado inicialmente a purificadoras, pero modelado para soportar distribución de gas, alimentos, bebidas, farmacia, refacciones o paquetería local sin condicionar el código a un producto específico.
 
 ```text
-App Expo (web/Android)
+App móvil Expo (Android)
         │
         ├── REST ───────────── Express API ───────── MongoDB
         │

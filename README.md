@@ -1,6 +1,6 @@
 # VITEG
 
-Sistema independiente de gestión y seguimiento de reparto para purificadoras y negocios de distribución local. Esta primera base implementa la arquitectura definida en el análisis funcional: dos perfiles (`ADMIN` y `DRIVER`), aplicación Expo para Android/web, API REST, MongoDB y comunicación en tiempo real con Socket.IO.
+Sistema independiente de gestión y seguimiento de reparto para purificadoras y negocios de distribución local. Esta primera base implementa la arquitectura definida en el análisis funcional: dos perfiles (`ADMIN` y `DRIVER`), aplicación móvil Expo para Android, API REST, MongoDB y comunicación en tiempo real con Socket.IO.
 
 ## Qué incluye esta versión
 
@@ -14,7 +14,8 @@ Sistema independiente de gestión y seguimiento de reparto para purificadoras y 
 - Tracking limitado a rutas activas y retención de puntos por 30 días.
 - Conversaciones directas o vinculadas a una ruta.
 - Notificaciones operativas.
-- Dashboard responsive para administrador y experiencia simplificada para repartidor.
+- Experiencia móvil diferenciada para administrador y repartidor.
+- Identidad visual basada en el logotipo oficial de VITEG.
 
 ## Estructura
 
@@ -22,7 +23,7 @@ Sistema independiente de gestión y seguimiento de reparto para purificadoras y 
 VITEG/
 ├── apps/
 │   ├── api/       API Express + MongoDB + Socket.IO
-│   └── app/       Aplicación React Native + Expo (Android y web)
+│   └── app/       Aplicación móvil React Native + Expo para Android
 ├── packages/
 │   └── shared/    Tipos, estados y reglas compartidas
 ├── docs/
@@ -55,7 +56,6 @@ Copy-Item .env.example .env
 
 Servicios locales:
 
-- Aplicación web: `http://localhost:8081`
 - API: `http://localhost:4000`
 - Estado de la API: `http://localhost:4000/health`
 
@@ -75,7 +75,7 @@ Las credenciales son solo para desarrollo. Deben reemplazarse antes de cualquier
 ```bash
 npm run dev          # API y app en paralelo
 npm run dev:api      # Solo API
-npm run dev:app      # Solo Expo
+npm run dev:app      # Abre Expo para ejecutar la app Android
 npm run build        # Compila y valida tipos
 npm test             # Pruebas automatizadas
 npm run seed         # Datos iniciales

@@ -234,7 +234,7 @@ export const driverNavigation = [
 ] as const;
 
 const styles = StyleSheet.create({
-  page: { padding: 24, gap: 14, maxWidth: 1440, width: "100%", alignSelf: "center" },
+  page: { padding: 16, gap: 14, width: "100%", alignSelf: "center" },
   metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   metric: { flexGrow: 1, flexBasis: 190, minWidth: 175 },
   metricIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", marginBottom: 14 },
