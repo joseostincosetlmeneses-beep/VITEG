@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -13,8 +14,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import type { DashboardSummary, SessionUser } from "@viteg/shared";
 import { api } from "./api";
-import { Button, Card, Loading, SectionTitle, StatusPill } from "./components";
+import { Button, Card, Field, Loading, SectionTitle, StatusPill } from "./components";
 import { colors, radius } from "./theme";
+import { RouteMap, type RouteMapPoint } from "./RouteMap";
 
 const icon = (name: keyof typeof Ionicons.glyphMap, size = 20, color: string = colors.muted) => (
   <Ionicons name={name} size={size} color={color} />
@@ -92,22 +94,117 @@ export function AdminDashboard() {
 
 export function RoutesScreen({ driver = false }: { driver?: boolean }) {
   const [routes, setRoutes] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
+  const [selectedStops, setSelectedStops] = useState<any[]>([]);
+  const [editingRoute, setEditingRoute] = useState<any | null>(null);
+  const [formVisible, setFormVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
-    try { setRoutes(await api.routes()); } catch (error) { Alert.alert("Rutas", String(error)); } finally { setLoading(false); }
-  }, []);
+    try {
+      const [nextRoutes, nextDrivers, nextAddresses] = await Promise.all([
+        api.routes(),
+        driver ? Promise.resolve([]) : api.drivers(),
+        driver ? Promise.resolve([]) : api.addresses()
+      ]);
+      setRoutes(nextRoutes);
+      setDrivers(nextDrivers.filter((item) => item.status === "ACTIVE"));
+      setAddresses(nextAddresses.filter((item) => item.status === "ACTIVE"));
+      if (selectedRoute) {
+        setSelectedRoute(nextRoutes.find((item) => item._id === selectedRoute._id) ?? null);
+      }
+    } catch (error) {
+      Alert.alert("Rutas", error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }, [driver, selectedRoute?._id]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!selectedRoute) {
+      setSelectedStops([]);
+      return;
+    }
+    void api.routeStops(selectedRoute._id)
+      .then(setSelectedStops)
+      .catch((error) => Alert.alert("Mapa de ruta", error instanceof Error ? error.message : String(error)));
+  }, [selectedRoute?._id]);
   const updateStatus = async (route: any) => {
     const next = route.status === "ASSIGNED" ? "IN_PROGRESS" : route.status === "IN_PROGRESS" ? "COMPLETED" : null;
     if (!next) return;
     try { await api.updateRouteStatus(route._id, next); await load(); } catch (error) { Alert.alert("No se pudo actualizar", error instanceof Error ? error.message : String(error)); }
   };
+  const removeRoute = (route: any) => {
+    Alert.alert(
+      "Eliminar ruta",
+      `Se eliminará “${route.name}” y sus paradas. Esta acción no se puede deshacer.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: () => void api.deleteRoute(route._id)
+            .then(() => {
+              if (selectedRoute?._id === route._id) setSelectedRoute(null);
+              return load();
+            })
+            .catch((error) => Alert.alert("No se pudo eliminar", error instanceof Error ? error.message : String(error)))
+        }
+      ]
+    );
+  };
+  const mapPoints: RouteMapPoint[] = selectedRoute
+    ? selectedStops.flatMap((stop) => {
+        const location = stop.addressId?.location;
+        return typeof location?.latitude === "number" && typeof location?.longitude === "number"
+          ? [{ id: stop._id, label: stop.addressId.alias ?? `Parada ${stop.sequence}`, coordinates: [location.longitude, location.latitude] as [number, number], sequence: stop.sequence }]
+          : [];
+      })
+    : addresses.flatMap((address) => {
+        const location = address.location;
+        return typeof location?.latitude === "number" && typeof location?.longitude === "number"
+          ? [{ id: address._id, label: address.alias, coordinates: [location.longitude, location.latitude] as [number, number] }]
+          : [];
+      });
   if (loading) return <Loading />;
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <SectionTitle title={driver ? "Mi ruta" : "Rutas"} subtitle={driver ? "Tu jornada y próximas paradas" : "Planeación, asignación y seguimiento"} />
+      <SectionTitle
+        title={driver ? "Mi ruta" : "Rutas"}
+        subtitle={driver ? "Tu jornada y próximas paradas" : "Planeación, asignación y seguimiento con Mapbox"}
+        action={!driver ? (
+          <Button
+            label="Nueva"
+            icon="add"
+            onPress={() => {
+              setEditingRoute(null);
+              setFormVisible(true);
+            }}
+          />
+        ) : undefined}
+      />
+      {!driver && (
+        <Card style={styles.mapCard}>
+          <View style={styles.cardHeading}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{selectedRoute ? selectedRoute.name : "Mapa de cobertura"}</Text>
+              <Text style={styles.cardSubtitle}>
+                {selectedRoute ? "Paradas ordenadas y recorrido por calles" : "Domicilios disponibles para planear rutas"}
+              </Text>
+            </View>
+            {selectedRoute && (
+              <Pressable style={styles.mapReset} onPress={() => setSelectedRoute(null)}>
+                {icon("close", 18, colors.blue)}
+                <Text style={styles.mapResetText}>Ver todos</Text>
+              </Pressable>
+            )}
+          </View>
+          <RouteMap points={mapPoints} />
+        </Card>
+      )}
       {routes.length === 0 ? <Card><Empty text="No hay rutas disponibles." /></Card> : routes.map((route) => (
-        <Card key={route._id} style={{ marginBottom: 12 }}>
+        <Card key={route._id} style={[styles.routeCard, selectedRoute?._id === route._id ? styles.routeCardSelected : {}]}>
           <View style={styles.rowTop}>
             <View style={{ flex: 1 }}><Text style={styles.routeName}>{route.name}</Text><Text style={styles.rowMeta}>{new Date(route.date).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}</Text></View>
             <StatusPill value={route.status} />
@@ -120,9 +217,143 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           {driver && ["ASSIGNED", "IN_PROGRESS"].includes(route.status) && (
             <Button label={route.status === "ASSIGNED" ? "Iniciar ruta" : "Finalizar ruta"} icon={route.status === "ASSIGNED" ? "play" : "flag"} onPress={() => void updateStatus(route)} />
           )}
+          {!driver && (
+            <View style={styles.routeActions}>
+              <Pressable style={styles.routeAction} onPress={() => setSelectedRoute(route)}>
+                {icon("map-outline", 18, colors.blue)}
+                <Text style={styles.routeActionText}>Mapa</Text>
+              </Pressable>
+              <Pressable
+                style={styles.routeAction}
+                onPress={() => {
+                  setEditingRoute(route);
+                  setFormVisible(true);
+                }}
+              >
+                {icon("create-outline", 18, colors.blue)}
+                <Text style={styles.routeActionText}>Editar</Text>
+              </Pressable>
+              <Pressable style={[styles.routeAction, styles.routeActionDanger]} onPress={() => removeRoute(route)}>
+                {icon("trash-outline", 18, colors.red)}
+                <Text style={[styles.routeActionText, { color: colors.red }]}>Eliminar</Text>
+              </Pressable>
+            </View>
+          )}
         </Card>
       ))}
+      {!driver && (
+        <RouteFormModal
+          visible={formVisible}
+          route={editingRoute}
+          drivers={drivers}
+          onClose={() => setFormVisible(false)}
+          onSaved={() => {
+            setFormVisible(false);
+            void load();
+          }}
+        />
+      )}
     </ScrollView>
+  );
+}
+
+function RouteFormModal({
+  visible,
+  route,
+  drivers,
+  onClose,
+  onSaved
+}: {
+  visible: boolean;
+  route: any | null;
+  drivers: any[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startTime, setStartTime] = useState("08:00");
+  const [vehicleLabel, setVehicleLabel] = useState("");
+  const [driverId, setDriverId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setName(route?.name ?? "");
+    setDate(route?.date ? new Date(route.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setStartTime(route?.startTime ?? "08:00");
+    setVehicleLabel(route?.vehicleLabel ?? "");
+    setDriverId(typeof route?.driverId === "string" ? route.driverId : route?.driverId?._id ?? "");
+  }, [visible, route]);
+
+  const save = async () => {
+    if (name.trim().length < 3) {
+      Alert.alert("Ruta", "Escribe un nombre de al menos 3 caracteres");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      Alert.alert("Ruta", "La fecha debe tener el formato AAAA-MM-DD");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        name: name.trim(),
+        date: `${date}T12:00:00`,
+        startTime: startTime.trim() || undefined,
+        vehicleLabel: vehicleLabel.trim() || undefined,
+        driverId: driverId || null
+      };
+      if (route) await api.updateRoute(route._id, payload);
+      else await api.createRoute(payload);
+      onSaved();
+    } catch (error) {
+      Alert.alert("No se pudo guardar", error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <View style={styles.cardHeading}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>{route ? "Editar ruta" : "Nueva ruta"}</Text>
+                <Text style={styles.cardSubtitle}>Programa la unidad y asigna un repartidor</Text>
+              </View>
+              <Pressable style={styles.modalClose} onPress={onClose}>{icon("close", 24, colors.ink)}</Pressable>
+            </View>
+            <Field label="Nombre de la ruta" value={name} onChangeText={setName} placeholder="Ej. Ruta Centro" />
+            <Field label="Fecha (AAAA-MM-DD)" value={date} onChangeText={setDate} placeholder="2026-10-05" autoCapitalize="none" />
+            <Field label="Hora de salida" value={startTime} onChangeText={setStartTime} placeholder="08:00" autoCapitalize="none" />
+            <Field label="Camioneta o unidad" value={vehicleLabel} onChangeText={setVehicleLabel} placeholder="Ej. Nissan NP300 · VITEG-01" />
+            <View style={{ gap: 8 }}>
+              <Text style={styles.fieldLabel}>Asignar repartidor</Text>
+              <Pressable style={[styles.driverOption, !driverId && styles.driverOptionSelected]} onPress={() => setDriverId("")}>
+                {icon("person-remove-outline", 19, !driverId ? "white" : colors.blue)}
+                <Text style={[styles.driverOptionText, !driverId && styles.driverOptionTextSelected]}>Sin asignar</Text>
+              </Pressable>
+              {drivers.map((item) => {
+                const selected = driverId === item._id;
+                return (
+                  <Pressable key={item._id} style={[styles.driverOption, selected && styles.driverOptionSelected]} onPress={() => setDriverId(item._id)}>
+                    {icon("car-outline", 19, selected ? "white" : colors.blue)}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.driverOptionText, selected && styles.driverOptionTextSelected]}>{item.firstName} {item.lastName}</Text>
+                      <Text style={[styles.driverOptionMeta, selected && styles.driverOptionTextSelected]}>{item.phone ?? item.email}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Button label={saving ? "Guardando…" : route ? "Guardar cambios" : "Crear ruta"} icon="save-outline" disabled={saving} onPress={() => void save()} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -256,9 +487,29 @@ const styles = StyleSheet.create({
   mapPin: { position: "absolute", width: 34, height: 34, borderRadius: 17, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "white" },
   customerPin: { position: "absolute", width: 14, height: 14, borderRadius: 7, backgroundColor: colors.amber, borderWidth: 3, borderColor: "white" },
   mapNote: { position: "absolute", bottom: 12, alignSelf: "center", backgroundColor: "rgba(255,255,255,.9)", color: colors.muted, fontSize: 11, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  mapCard: { padding: 12, marginBottom: 2 },
+  mapReset: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: colors.softBlue },
+  mapResetText: { color: colors.blue, fontSize: 12, fontWeight: "800" },
   rowTop: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   routeName: { fontSize: 19, fontWeight: "900", color: colors.ink },
   routeStats: { flexDirection: "row", flexWrap: "wrap", gap: 22, paddingVertical: 18 },
+  routeCard: { marginBottom: 12 },
+  routeCardSelected: { borderColor: colors.blue, borderWidth: 2 },
+  routeActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 4 },
+  routeAction: { minHeight: 40, paddingHorizontal: 12, borderRadius: 9, backgroundColor: colors.softBlue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  routeActionDanger: { backgroundColor: colors.softRed },
+  routeActionText: { color: colors.blue, fontSize: 12, fontWeight: "800" },
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(16,42,67,0.45)" },
+  modalCard: { maxHeight: "92%", backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" },
+  modalContent: { padding: 20, paddingBottom: 36, gap: 16 },
+  modalTitle: { color: colors.ink, fontSize: 24, fontWeight: "900" },
+  modalClose: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "white" },
+  fieldLabel: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  driverOption: { minHeight: 54, paddingHorizontal: 13, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: "white", flexDirection: "row", alignItems: "center", gap: 10 },
+  driverOptionSelected: { backgroundColor: colors.blue, borderColor: colors.blue },
+  driverOptionText: { color: colors.ink, fontSize: 13, fontWeight: "800" },
+  driverOptionTextSelected: { color: "white" },
+  driverOptionMeta: { color: colors.muted, fontSize: 11, marginTop: 2 },
   smallStat: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 105 },
   smallValue: { fontSize: 14, fontWeight: "800", color: colors.ink },
   smallLabel: { fontSize: 11, color: colors.muted },

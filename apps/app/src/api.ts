@@ -55,6 +55,11 @@ export const api = {
   dashboard: () => request<DashboardSummary>("/dashboard/summary"),
   routes: () => request<any[]>("/distribution/routes"),
   routeStops: (routeId: string) => request<any[]>(`/distribution/routes/${routeId}/stops`),
+  createRoute: (value: unknown) => request<any>("/distribution/routes", { method: "POST", body: JSON.stringify(value) }),
+  updateRoute: (routeId: string, value: unknown) => request<any>(`/distribution/routes/${routeId}`, { method: "PATCH", body: JSON.stringify(value) }),
+  deleteRoute: (routeId: string) => request<{ id: string }>(`/distribution/routes/${routeId}`, { method: "DELETE" }),
+  drivers: () => request<any[]>("/users?role=DRIVER"),
+  addresses: () => request<any[]>("/addresses"),
   updateRouteStatus: (routeId: string, status: string) =>
     request<any>(`/distribution/routes/${routeId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   list: (path: string) => request<any[]>(path),

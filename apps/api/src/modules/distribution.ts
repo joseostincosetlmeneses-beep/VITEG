@@ -9,11 +9,13 @@ const createRouteSchema = z.object({
   name: z.string().min(3),
   date: z.coerce.date(),
   zoneId: z.string().optional(),
-  driverId: z.string().optional(),
+  driverId: z.string().nullable().optional(),
   vehicleLabel: z.string().optional(),
   startTime: z.string().optional(),
   estimatedReturnTime: z.string().optional()
 });
+
+const updateRouteSchema = createRouteSchema.partial();
 
 const stopSchema = z.object({
   customerId: z.string(),
@@ -80,6 +82,57 @@ distributionRouter.post(
       });
     }
     response.status(201).json({ data: route });
+  })
+);
+
+distributionRouter.patch(
+  "/routes/:routeId",
+  allowRoles("ADMIN"),
+  asyncHandler(async (request, response) => {
+    const input = updateRouteSchema.parse(request.body);
+    const route = await Route.findOne({ _id: request.params.routeId, tenantId: "default" });
+    if (!route) throw new AppError(404, "Ruta no encontrada");
+    if (!["DRAFT", "SCHEDULED", "ASSIGNED"].includes(route.status)) {
+      throw new AppError(409, "Solo se pueden editar rutas que todavía no han iniciado");
+    }
+
+    const previousDriverId = route.driverId?.toString();
+    Object.assign(route, input);
+    if (Object.hasOwn(input, "driverId")) {
+      route.driverId = input.driverId || undefined;
+      route.status = input.driverId ? "ASSIGNED" : "DRAFT";
+    }
+    await route.save();
+
+    if (input.driverId && input.driverId !== previousDriverId) {
+      await Notification.create({
+        tenantId: "default",
+        userId: input.driverId,
+        type: "ROUTE_ASSIGNED",
+        title: "Ruta asignada",
+        body: route.name,
+        entityType: "Route",
+        entityId: route._id
+      });
+    }
+
+    await route.populate("driverId", "firstName lastName phone");
+    response.json({ data: route, message: "Ruta actualizada" });
+  })
+);
+
+distributionRouter.delete(
+  "/routes/:routeId",
+  allowRoles("ADMIN"),
+  asyncHandler(async (request, response) => {
+    const route = await Route.findOne({ _id: request.params.routeId, tenantId: "default" });
+    if (!route) throw new AppError(404, "Ruta no encontrada");
+    if (!["DRAFT", "SCHEDULED", "ASSIGNED", "CANCELLED"].includes(route.status)) {
+      throw new AppError(409, "No se puede eliminar una ruta iniciada o completada");
+    }
+    await RouteStop.deleteMany({ routeId: route._id, tenantId: "default" });
+    await route.deleteOne();
+    response.json({ data: { id: String(route._id) }, message: "Ruta eliminada" });
   })
 );
 
