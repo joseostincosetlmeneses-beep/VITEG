@@ -22,6 +22,7 @@ import { Button, Field } from "./src/components";
 import { AdminDashboard, DriverHome, ResourceScreen, RoutesScreen } from "./src/screens";
 import { ClientsScreen, CustomerRequestScreen, RequestsScreen } from "./src/CustomerScreens";
 import { DriverLocationReporter } from "./src/DriverLocationReporter";
+import { AgendaScreen } from "./src/AgendaScreen";
 import { colors, radius } from "./src/theme";
 
 const logo = require("./assets/viteg-logo.png");
@@ -34,7 +35,7 @@ type NavItem = {
 const adminTabs: NavItem[] = [
   { label: "Inicio", icon: "home-outline" },
   { label: "Rutas", icon: "map-outline" },
-  { label: "Clientes", icon: "people-outline" },
+  { label: "Agenda", icon: "calendar-outline" },
   { label: "Chat", icon: "chatbubbles-outline" },
   { label: "Más", icon: "grid-outline" }
 ];
@@ -49,7 +50,7 @@ const driverTabs: NavItem[] = [
 
 const adminMore: NavItem[] = [
   { label: "Monitor", icon: "navigate-circle-outline" },
-  { label: "Agenda", icon: "calendar-outline" },
+  { label: "Clientes", icon: "people-outline" },
   { label: "Repartidores", icon: "people-outline" },
   { label: "Domicilios", icon: "location-outline" },
   { label: "Zonas", icon: "grid-outline" },
@@ -337,6 +338,8 @@ function Workspace({
       ? <RoutesScreen driver={user.role === "DRIVER"} />
       : current === "Clientes" && user.role === "ADMIN"
         ? <ClientsScreen />
+        : current === "Agenda" && user.role === "ADMIN"
+          ? <AgendaScreen />
         : current === "Solicitudes" && user.role === "ADMIN"
           ? <RequestsScreen />
           : current === "Nuevo cliente" && user.role === "DRIVER"
