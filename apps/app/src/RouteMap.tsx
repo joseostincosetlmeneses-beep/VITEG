@@ -17,11 +17,13 @@ if (accessToken) Mapbox.setAccessToken(accessToken);
 export function RouteMap({
   points,
   fullScreen = false,
-  onMapPress
+  onMapPress,
+  showCaption = true
 }: {
   points: RouteMapPoint[];
   fullScreen?: boolean;
   onMapPress?: (coordinates: [number, number]) => void;
+  showCaption?: boolean;
 }) {
   const [roadCoordinates, setRoadCoordinates] = useState<[number, number][]>([]);
   const orderedPoints = useMemo(
@@ -148,7 +150,7 @@ export function RouteMap({
           />
         </Mapbox.ShapeSource>
       </Mapbox.MapView>
-      <View style={styles.caption}>
+      {showCaption && <View style={styles.caption}>
         <Text style={styles.captionText}>
           {orderedPoints.length
             ? fullScreen
@@ -156,7 +158,7 @@ export function RouteMap({
               : `${orderedPoints.length} punto${orderedPoints.length === 1 ? "" : "s"} en el mapa`
             : "Agrega domicilios a una ruta para trazarla"}
         </Text>
-      </View>
+      </View>}
     </View>
   );
 }

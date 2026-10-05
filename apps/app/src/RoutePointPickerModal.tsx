@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { Alert, Animated, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { MapboxPlace } from "./MapboxPlaceSearch";
@@ -7,6 +7,8 @@ import { RouteMap, type RouteMapPoint } from "./RouteMap";
 import { colors, radius } from "./theme";
 
 type PointMode = "origin" | "stop" | "destination";
+const COLLAPSED_SHEET_HEIGHT = 68;
+const EXPANDED_SHEET_HEIGHT = 310;
 
 export function RoutePointPickerModal({
   visible,
@@ -28,6 +30,30 @@ export function RoutePointPickerModal({
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<PointMode>("origin");
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const sheetHeight = useRef(new Animated.Value(COLLAPSED_SHEET_HEIGHT)).current;
+  const settledSheetHeight = useRef(COLLAPSED_SHEET_HEIGHT);
+  const animateSheet = (expanded: boolean) => {
+    const nextHeight = expanded ? EXPANDED_SHEET_HEIGHT : COLLAPSED_SHEET_HEIGHT;
+    setSheetExpanded(expanded);
+    settledSheetHeight.current = nextHeight;
+    Animated.spring(sheetHeight, { toValue: nextHeight, useNativeDriver: false, damping: 22, stiffness: 220, mass: 0.8 }).start();
+  };
+  const sheetPanResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dy) > 4,
+    onPanResponderMove: (_event, gesture) => {
+      const nextHeight = Math.max(
+        COLLAPSED_SHEET_HEIGHT,
+        Math.min(EXPANDED_SHEET_HEIGHT, settledSheetHeight.current - gesture.dy)
+      );
+      sheetHeight.setValue(nextHeight);
+    },
+    onPanResponderRelease: (_event, gesture) => {
+      const projectedHeight = settledSheetHeight.current - gesture.dy - gesture.vy * 45;
+      animateSheet(projectedHeight > (COLLAPSED_SHEET_HEIGHT + EXPANDED_SHEET_HEIGHT) / 2);
+    },
+    onPanResponderTerminate: () => animateSheet(sheetExpanded)
+  }), [sheetExpanded, sheetHeight]);
   const points = useMemo<RouteMapPoint[]>(() => [
     ...(origin ? [{ id: "picker-origin", label: origin.label, coordinates: [origin.longitude, origin.latitude] as [number, number], sequence: 0, kind: "origin" as const }] : []),
     ...waypoints.map((point, index) => ({ id: `picker-stop-${index}`, label: point.label, coordinates: [point.longitude, point.latitude] as [number, number], sequence: index + 1, kind: "stop" as const })),
@@ -75,21 +101,26 @@ export function RoutePointPickerModal({
           <ModeButton active={mode === "stop"} icon="add-circle" label="Parada" color={colors.amber} onPress={() => setMode("stop")} />
           <ModeButton active={mode === "destination"} icon="location" label="Destino" color={colors.red} onPress={() => setMode("destination")} />
         </View>
-        <View style={styles.instruction}>
-          <Ionicons name="finger-print-outline" size={19} color={colors.blue} />
-          <Text style={styles.instructionText}>
-            {mode === "stop" ? "Cada toque agrega una nueva parada" : `Toca el mapa para ${mode === "origin" ? "fijar o reemplazar el origen" : "fijar o reemplazar el destino"}`}
-          </Text>
-        </View>
+        <View style={styles.mapArea}>
+          <RouteMap points={points} fullScreen onMapPress={placePoint} showCaption={false} />
 
-        <RouteMap points={points} fullScreen onMapPress={placePoint} />
-
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeading}>
-            <Text style={styles.sheetTitle}>Recorrido</Text>
-            <Text style={styles.count}>{waypoints.length} parada{waypoints.length === 1 ? "" : "s"}</Text>
-          </View>
-          <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 8 }}>
+          <Animated.View style={[styles.sheet, { height: sheetHeight }]}>
+            <View {...sheetPanResponder.panHandlers}>
+              <Pressable style={styles.sheetHeading} onPress={() => animateSheet(!sheetExpanded)}>
+                <View style={styles.dragHandle} />
+                <View style={styles.sheetTitleRow}>
+                  <View>
+                    <Text style={styles.sheetTitle}>Recorrido</Text>
+                    <Text style={styles.sheetHint}>{sheetExpanded ? "Desliza hacia abajo para ocultar" : "Desliza hacia arriba para ver los puntos"}</Text>
+                  </View>
+                  <View style={styles.sheetHeadingRight}>
+                    <Text style={styles.count}>{waypoints.length} parada{waypoints.length === 1 ? "" : "s"}</Text>
+                    <Ionicons name={sheetExpanded ? "chevron-down" : "chevron-up"} size={21} color={colors.blue} />
+                  </View>
+                </View>
+              </Pressable>
+            </View>
+            <ScrollView style={styles.list} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }}>
             <PointRow label={origin?.label ?? "Toca el mapa para definirlo"} title="Origen" color={colors.green} onRemove={origin ? () => onOriginChange(null) : undefined} />
             {waypoints.map((point, index) => (
               <PointRow
@@ -103,11 +134,12 @@ export function RoutePointPickerModal({
               />
             ))}
             <PointRow label={destination?.label ?? "Toca el mapa para definirlo"} title="Destino" color={colors.red} onRemove={destination ? () => onDestinationChange(null) : undefined} />
-          </ScrollView>
-          <Pressable style={styles.done} onPress={onClose}>
-            <Ionicons name="checkmark" size={20} color="white" />
-            <Text style={styles.doneText}>Usar estos puntos</Text>
-          </Pressable>
+            </ScrollView>
+            <Pressable style={styles.done} onPress={onClose}>
+              <Ionicons name="checkmark" size={20} color="white" />
+              <Text style={styles.doneText}>Usar estos puntos</Text>
+            </Pressable>
+          </Animated.View>
         </View>
       </SafeAreaView>
     </Modal>
@@ -147,18 +179,21 @@ const styles = StyleSheet.create({
   modeBar: { flexDirection: "row", gap: 7, padding: 10, backgroundColor: "white" },
   mode: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm },
   modeText: { color: colors.muted, fontSize: 12, fontWeight: "900" },
-  instruction: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 12, paddingBottom: 9 },
-  instructionText: { color: colors.ink, fontSize: 12, fontWeight: "700" },
-  sheet: { maxHeight: "38%", padding: 12, backgroundColor: "white", borderTopWidth: 1, borderTopColor: colors.border },
-  sheetHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 7 },
+  mapArea: { flex: 1, position: "relative" },
+  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, overflow: "hidden", backgroundColor: "white", borderTopWidth: 1, borderTopColor: colors.border, borderTopLeftRadius: 20, borderTopRightRadius: 20, shadowColor: colors.navy, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
+  sheetHeading: { height: COLLAPSED_SHEET_HEIGHT, paddingHorizontal: 16, paddingTop: 7, paddingBottom: 9 },
+  dragHandle: { width: 42, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 7 },
+  sheetTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sheetHeadingRight: { flexDirection: "row", alignItems: "center", gap: 7 },
   sheetTitle: { color: colors.ink, fontSize: 16, fontWeight: "900" },
+  sheetHint: { color: colors.muted, fontSize: 9, marginTop: 2 },
   count: { color: colors.blue, fontSize: 11, fontWeight: "900" },
-  list: { maxHeight: 150 },
+  list: { flex: 1 },
   pointRow: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 9, borderBottomWidth: 1, borderBottomColor: "#EDF2F7", paddingVertical: 5 },
   dot: { width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: "white" },
   pointTitle: { color: colors.ink, fontSize: 12, fontWeight: "900" },
   pointLabel: { color: colors.muted, fontSize: 10, marginTop: 2 },
   smallAction: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 9, backgroundColor: colors.background },
-  done: { minHeight: 48, marginTop: 10, borderRadius: radius.sm, backgroundColor: colors.blue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  done: { minHeight: 48, marginHorizontal: 12, marginTop: 7, marginBottom: 12, borderRadius: radius.sm, backgroundColor: colors.blue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
   doneText: { color: "white", fontSize: 14, fontWeight: "900" }
 });
