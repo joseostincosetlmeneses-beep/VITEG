@@ -264,7 +264,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           </View>
         </Card>
       ))}
-      {selectedRoute && (
+      {!driver && (
         <RouteFormModal
           visible={formVisible}
           route={editingRoute}
@@ -277,7 +277,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           }}
         />
       )}
-      {!driver && (
+      {selectedRoute && (
         <Modal
           visible={mapFullscreen}
           animationType="slide"
@@ -288,7 +288,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
             <View style={styles.fullscreenMapHeader}>
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={styles.fullscreenMapTitle}>
-                  {selectedRoute.name}
+                  {selectedRoute?.name ?? "Ruta"}
                 </Text>
                 <Text style={styles.fullscreenMapSubtitle}>
                   {`${mapPoints.length} puntos · recorrido por calles`}
