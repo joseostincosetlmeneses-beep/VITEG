@@ -172,8 +172,8 @@ function Login({ onSuccess }: { onSuccess: (user: SessionUser) => void }) {
                 <Text style={styles.roleLabel}>Ingresa como</Text>
                 <View style={styles.roleOptions}>
                   {([
-                    { value: "ADMIN" as const, label: "Administrador", icon: "shield-checkmark-outline" as const },
-                    { value: "DRIVER" as const, label: "Repartidor", icon: "bicycle-outline" as const }
+                    { value: "ADMIN" as const, label: "Administrador", icon: "briefcase-outline" as const },
+                    { value: "DRIVER" as const, label: "Repartidor", icon: "car-outline" as const }
                   ]).map((option) => {
                     const selected = role === option.value;
                     return (
