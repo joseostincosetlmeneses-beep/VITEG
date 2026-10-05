@@ -3,19 +3,41 @@
     "name": "VITEG",
     "slug": "viteg",
     "version": "0.1.0",
-    "platforms": ["android"],
+    "scheme": "viteg",
+    "platforms": [
+      "android"
+    ],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/viteg-app-icon.png",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "android": {
       "package": "mx.viteg.distribucion",
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/viteg-app-icon.png",
         "backgroundColor": "#FFFFFF"
       }
-    }
+    },
+    "plugins": [
+      "@rnmapbox/maps",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "VITEG usa tu ubicación para mostrar y actualizar las rutas de reparto."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "88538931-36e8-4297-b532-3f72f0a9bd66"
+      }
+    },
+    "owner": "ostin2709"
   }
 }
-
