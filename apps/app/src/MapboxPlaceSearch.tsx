@@ -7,6 +7,8 @@ export type MapboxPlace = {
   label: string;
   latitude: number;
   longitude: number;
+  customerId?: string;
+  addressId?: string;
 };
 
 type SearchResult = {

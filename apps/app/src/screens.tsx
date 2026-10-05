@@ -293,6 +293,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           visible={formVisible}
           route={editingRoute}
           drivers={drivers}
+          addresses={addresses}
           onClose={() => setFormVisible(false)}
           onSaved={() => {
             setFormVisible(false);
@@ -343,12 +344,14 @@ function RouteFormModal({
   visible,
   route,
   drivers,
+  addresses,
   onClose,
   onSaved
 }: {
   visible: boolean;
   route: any | null;
   drivers: any[];
+  addresses: any[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -373,7 +376,13 @@ function RouteFormModal({
     setDriverId(typeof route?.driverId === "string" ? route.driverId : route?.driverId?._id ?? "");
     setOrigin(route?.origin ?? null);
     setDestination(route?.destination ?? null);
-    setWaypoints(Array.isArray(route?.waypoints) ? route.waypoints : []);
+    setWaypoints(Array.isArray(route?.waypoints) ? route.waypoints.map((point: any) => ({
+      label: point.label,
+      latitude: point.latitude,
+      longitude: point.longitude,
+      customerId: typeof point.customerId === "string" ? point.customerId : point.customerId?._id,
+      addressId: typeof point.addressId === "string" ? point.addressId : point.addressId?._id
+    })) : []);
     setStopCandidate(null);
   }, [visible, route]);
 
@@ -441,6 +450,48 @@ function RouteFormModal({
                 {icon("chevron-forward", 20, "white")}
               </Pressable>
               <MapboxPlaceSearch label="Punto de salida" value={origin} onChange={setOrigin} />
+              <View style={{ gap: 8 }}>
+                <Text style={styles.fieldLabel}>Añadir clientes como paradas</Text>
+                {addresses.length === 0 ? (
+                  <Text style={styles.noCustomersText}>Primero registra o aprueba un cliente con ubicación.</Text>
+                ) : addresses.map((address) => {
+                  const latitude = address.location?.latitude;
+                  const longitude = address.location?.longitude;
+                  const customerId = typeof address.customerId === "string" ? address.customerId : address.customerId?._id;
+                  const name = address.customerId?.businessName
+                    || `${address.customerId?.firstName ?? ""} ${address.customerId?.lastName ?? ""}`.trim()
+                    || address.alias;
+                  const added = waypoints.some((point) => point.addressId === address._id);
+                  const available = typeof latitude === "number" && typeof longitude === "number";
+                  return (
+                    <Pressable
+                      key={address._id}
+                      disabled={!available || added}
+                      style={[styles.customerStopOption, added && styles.customerStopAdded, !available && { opacity: 0.45 }]}
+                      onPress={() => {
+                        if (waypoints.length >= 23) {
+                          Alert.alert("Límite de paradas", "Una ruta puede contener hasta 23 paradas intermedias.");
+                          return;
+                        }
+                        setWaypoints([...waypoints, {
+                          label: name,
+                          latitude,
+                          longitude,
+                          customerId,
+                          addressId: address._id
+                        }]);
+                      }}
+                    >
+                      {icon(added ? "checkmark-circle" : "storefront-outline", 20, added ? colors.green : colors.blue)}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.customerStopName}>{name}</Text>
+                        <Text numberOfLines={1} style={styles.customerStopAddress}>{address.reference || address.street}</Text>
+                      </View>
+                      <Text style={[styles.customerStopAction, added && { color: colors.green }]}>{added ? "Añadido" : "+ Parada"}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <MapboxPlaceSearch label="Buscar una parada intermedia" value={stopCandidate} onChange={setStopCandidate} />
               {stopCandidate && (
                 <Pressable
@@ -536,7 +587,7 @@ const resourceConfig: Record<string, { title: string; subtitle: string; path?: s
   Configuración: { title: "Configuración", subtitle: "Preferencias generales del sistema", icon: "settings-outline" },
   Perfil: { title: "Mi perfil", subtitle: "Datos personales y estado de cuenta", icon: "person-circle-outline" },
   Mapa: { title: "Mapa", subtitle: "Navegación de la ruta activa", icon: "map-outline" },
-  "Nuevo domicilio": { title: "Nuevo domicilio", subtitle: "Envía una solicitud para revisión", icon: "add-circle-outline" }
+  "Nuevo cliente": { title: "Nuevo cliente", subtitle: "Envía una solicitud para revisión", icon: "add-circle-outline" }
 };
 
 export function ResourceScreen({ name }: { name: string }) {
@@ -594,7 +645,7 @@ export function DriverHome({ user, onNavigate }: { user: SessionUser; onNavigate
       <SectionTitle title="Acciones rápidas" />
       <View style={styles.quickGrid}>
         <QuickAction label="Abrir mapa" glyph="map-outline" onPress={() => onNavigate("Mapa")} />
-        <QuickAction label="Nuevo domicilio" glyph="add-circle-outline" onPress={() => onNavigate("Nuevo domicilio")} />
+        <QuickAction label="Nuevo cliente" glyph="add-circle-outline" onPress={() => onNavigate("Nuevo cliente")} />
         <QuickAction label="Enviar mensaje" glyph="chatbubble-ellipses-outline" onPress={() => onNavigate("Chat")} />
       </View>
     </ScrollView>
@@ -620,7 +671,7 @@ export const adminNavigation = [
 
 export const driverNavigation = [
   { section: "Ruta", items: [["Inicio", "home-outline"], ["Mi Ruta", "map-outline"], ["Mapa", "navigate-outline"], ["Entregas", "checkmark-done-outline"]] },
-  { section: "Cuenta", items: [["Nuevo domicilio", "add-circle-outline"], ["Chat", "chatbubbles-outline"], ["Notificaciones", "notifications-outline"], ["Perfil", "person-circle-outline"]] }
+  { section: "Cuenta", items: [["Nuevo cliente", "add-circle-outline"], ["Chat", "chatbubbles-outline"], ["Notificaciones", "notifications-outline"], ["Perfil", "person-circle-outline"]] }
 ] as const;
 
 const styles = StyleSheet.create({
@@ -684,6 +735,12 @@ const styles = StyleSheet.create({
   pickOnMapButton: { minHeight: 68, paddingHorizontal: 13, paddingVertical: 11, borderRadius: radius.sm, backgroundColor: colors.blue, flexDirection: "row", alignItems: "center", gap: 10 },
   pickOnMapTitle: { color: "white", fontSize: 13, fontWeight: "900" },
   pickOnMapSubtitle: { color: "#D9EAFB", fontSize: 10, lineHeight: 15, marginTop: 2 },
+  noCustomersText: { color: colors.muted, fontSize: 11, lineHeight: 16, padding: 10, borderRadius: radius.sm, backgroundColor: colors.background },
+  customerStopOption: { minHeight: 54, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "white" },
+  customerStopAdded: { borderColor: colors.green, backgroundColor: colors.softGreen },
+  customerStopName: { color: colors.ink, fontSize: 12, fontWeight: "900" },
+  customerStopAddress: { color: colors.muted, fontSize: 10, marginTop: 2 },
+  customerStopAction: { color: colors.blue, fontSize: 10, fontWeight: "900" },
   addStopButton: { minHeight: 44, borderRadius: radius.sm, backgroundColor: colors.softBlue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
   addStopText: { color: colors.blue, fontSize: 12, fontWeight: "900" },
   waypointList: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, overflow: "hidden" },

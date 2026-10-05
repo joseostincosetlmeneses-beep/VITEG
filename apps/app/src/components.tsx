@@ -37,11 +37,11 @@ export function Button({
   );
 }
 
-export function Field({ label, ...props }: TextInputProps & { label: string }) {
+export function Field({ label, style, ...props }: TextInputProps & { label: string }) {
   return (
     <View style={{ gap: 7 }}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput placeholderTextColor="#9FB3C8" style={styles.input} {...props} />
+      <TextInput placeholderTextColor="#9FB3C8" style={[styles.input, style]} {...props} />
     </View>
   );
 }

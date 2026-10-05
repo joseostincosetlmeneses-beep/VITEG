@@ -20,6 +20,7 @@ import type { Role, SessionUser } from "@viteg/shared";
 import { api } from "./src/api";
 import { Button, Field } from "./src/components";
 import { AdminDashboard, DriverHome, ResourceScreen, RoutesScreen } from "./src/screens";
+import { ClientsScreen, CustomerRequestScreen, RequestsScreen } from "./src/CustomerScreens";
 import { colors, radius } from "./src/theme";
 
 const logo = require("./assets/viteg-logo.png");
@@ -60,7 +61,7 @@ const adminMore: NavItem[] = [
 
 const driverMore: NavItem[] = [
   { label: "Mapa", icon: "map-outline" },
-  { label: "Nuevo domicilio", icon: "add-circle-outline" },
+  { label: "Nuevo cliente", icon: "add-circle-outline" },
   { label: "Notificaciones", icon: "notifications-outline" },
   { label: "Perfil", icon: "person-circle-outline" }
 ];
@@ -333,6 +334,12 @@ function Workspace({
       : <DriverHome user={user} onNavigate={setCurrent} />
     : current === "Rutas" || current === "Mi Ruta"
       ? <RoutesScreen driver={user.role === "DRIVER"} />
+      : current === "Clientes" && user.role === "ADMIN"
+        ? <ClientsScreen />
+        : current === "Solicitudes" && user.role === "ADMIN"
+          ? <RequestsScreen />
+          : current === "Nuevo cliente" && user.role === "DRIVER"
+            ? <CustomerRequestScreen />
       : current === "Más"
         ? <MoreMenu items={moreItems} onNavigate={setCurrent} onLogout={onLogout} />
         : <ResourceScreen name={current} />;

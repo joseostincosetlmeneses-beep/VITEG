@@ -15,6 +15,16 @@ const routeEndpointSchema = new Schema(
   },
   { _id: false }
 );
+const routeWaypointSchema = new Schema(
+  {
+    label: { type: String, required: true },
+    latitude: { type: Number, min: -90, max: 90, required: true },
+    longitude: { type: Number, min: -180, max: 180, required: true },
+    customerId: { type: Schema.Types.ObjectId, ref: "Customer" },
+    addressId: { type: Schema.Types.ObjectId, ref: "CustomerAddress" }
+  },
+  { _id: false }
+);
 const attachmentSchema = new Schema(
   {
     url: { type: String, required: true },
@@ -118,7 +128,7 @@ const routeSchema = new Schema(
     driverId: { type: Schema.Types.ObjectId, ref: "User", index: true },
     origin: routeEndpointSchema,
     destination: routeEndpointSchema,
-    waypoints: { type: [routeEndpointSchema], default: [] },
+    waypoints: { type: [routeWaypointSchema], default: [] },
     vehicleLabel: String,
     startTime: String,
     estimatedReturnTime: String,
