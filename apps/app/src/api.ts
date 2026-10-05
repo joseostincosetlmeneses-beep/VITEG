@@ -60,6 +60,8 @@ export const api = {
   deleteRoute: (routeId: string) => request<{ id: string }>(`/distribution/routes/${routeId}`, { method: "DELETE" }),
   drivers: () => request<any[]>("/users?role=DRIVER"),
   addresses: () => request<any[]>("/addresses"),
+  latestDriverLocations: () => request<any[]>("/tracking/locations/latest"),
+  trackLocation: (value: unknown) => request<any>("/tracking/locations", { method: "POST", body: JSON.stringify(value) }),
   updateRouteStatus: (routeId: string, status: string) =>
     request<any>(`/distribution/routes/${routeId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   list: (path: string) => request<any[]>(path),

@@ -20,6 +20,7 @@ import { RouteMap, type RouteMapPoint } from "./RouteMap";
 import { MapboxPlaceSearch, type MapboxPlace } from "./MapboxPlaceSearch";
 import { RoutePointPickerModal } from "./RoutePointPickerModal";
 import { RouteItinerarySheet } from "./RouteItinerarySheet";
+import { DriverTrackingMap } from "./DriverTrackingMap";
 
 const icon = (name: keyof typeof Ionicons.glyphMap, size = 20, color: string = colors.muted) => (
   <Ionicons name={name} size={size} color={color} />
@@ -38,13 +39,15 @@ function Metric({ label, value, tone, glyph }: { label: string; value: string | 
 export function AdminDashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [routes, setRoutes] = useState<any[]>([]);
+  const [driverLocations, setDriverLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextSummary, nextRoutes] = await Promise.all([api.dashboard(), api.routes()]);
+      const [nextSummary, nextRoutes, nextLocations] = await Promise.all([api.dashboard(), api.routes(), api.latestDriverLocations()]);
       setSummary(nextSummary);
       setRoutes(nextRoutes.slice(0, 5));
+      setDriverLocations(nextLocations);
     } catch (error) {
       Alert.alert("No se pudo cargar", error instanceof Error ? error.message : "Error desconocido");
     } finally {
@@ -52,6 +55,10 @@ export function AdminDashboard() {
     }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const interval = setInterval(() => void api.latestDriverLocations().then(setDriverLocations).catch(() => undefined), 15000);
+    return () => clearInterval(interval);
+  }, []);
   if (loading && !summary) return <Loading />;
 
   return (
@@ -79,16 +86,11 @@ export function AdminDashboard() {
           ))}
         </Card>
         <Card style={{ flex: 1, minWidth: 280 }}>
-          <Text style={styles.cardTitle}>Mapa operativo</Text>
-          <View style={styles.mapMock}>
-            <View style={[styles.mapRoad, { transform: [{ rotate: "18deg" }] }]} />
-            <View style={[styles.mapRoad, { transform: [{ rotate: "-36deg" }] }]} />
-            <View style={[styles.mapPin, { left: "24%", top: "34%" }]}>{icon("car", 16, "white")}</View>
-            <View style={[styles.mapPin, { left: "67%", top: "57%", backgroundColor: colors.green }]}>{icon("car", 16, "white")}</View>
-            <View style={[styles.customerPin, { left: "48%", top: "22%" }]} />
-            <View style={[styles.customerPin, { left: "42%", top: "71%" }]} />
-            <Text style={styles.mapNote}>Proveedor de mapas pendiente de configuración</Text>
+          <View style={styles.cardHeading}>
+            <View><Text style={styles.cardTitle}>Ubicación de repartidores</Text><Text style={styles.cardSubtitle}>Última posición reportada durante rutas activas</Text></View>
+            <View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>EN VIVO</Text></View>
           </View>
+          <DriverTrackingMap locations={driverLocations} />
         </Card>
       </View>
     </ScrollView>
@@ -805,11 +807,6 @@ const styles = StyleSheet.create({
   avatar: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.softBlue, alignItems: "center", justifyContent: "center" },
   rowTitle: { fontSize: 14, fontWeight: "800", color: colors.ink },
   rowMeta: { fontSize: 12, color: colors.muted, marginTop: 3 },
-  mapMock: { height: 280, marginTop: 14, borderRadius: radius.md, overflow: "hidden", backgroundColor: "#EAF4F8", position: "relative" },
-  mapRoad: { position: "absolute", width: "140%", height: 16, backgroundColor: "white", top: "48%", left: "-20%", borderColor: "#D7E5EA", borderWidth: 1 },
-  mapPin: { position: "absolute", width: 34, height: 34, borderRadius: 17, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "white" },
-  customerPin: { position: "absolute", width: 14, height: 14, borderRadius: 7, backgroundColor: colors.amber, borderWidth: 3, borderColor: "white" },
-  mapNote: { position: "absolute", bottom: 12, alignSelf: "center", backgroundColor: "rgba(255,255,255,.9)", color: colors.muted, fontSize: 11, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   fullscreenMapRoot: { flex: 1, backgroundColor: "white" },
   fullscreenMapArea: { flex: 1, position: "relative" },
   fullscreenMapHeader: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "white", borderBottomWidth: 1, borderBottomColor: colors.border },

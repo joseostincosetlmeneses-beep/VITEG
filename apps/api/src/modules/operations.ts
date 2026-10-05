@@ -153,8 +153,9 @@ trackingRouter.get(
   "/locations/latest",
   allowRoles("ADMIN"),
   asyncHandler(async (_request, response) => {
+    const activeRoutes = await Route.find({ tenantId: "default", status: { $in: ["IN_PROGRESS", "PAUSED"] } }).select("_id").lean();
     const rows = await DriverLocation.aggregate([
-      { $match: { tenantId: "default" } },
+      { $match: { tenantId: "default", routeId: { $in: activeRoutes.map((route: any) => route._id) } } },
       { $sort: { recordedAt: -1 } },
       { $group: { _id: "$driverId", location: { $first: "$$ROOT" } } },
       { $replaceRoot: { newRoot: "$location" } }

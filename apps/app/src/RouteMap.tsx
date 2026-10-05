@@ -136,7 +136,7 @@ export function RouteMap({
           <Mapbox.CircleLayer
             id="viteg-route-points-layer"
             style={{
-              circleRadius: 8,
+              circleRadius: ["match", ["get", "kind"], "stop", 11, 8] as any,
               circleColor: [
                 "match",
                 ["get", "kind"],
@@ -146,6 +146,17 @@ export function RouteMap({
               ] as any,
               circleStrokeColor: "white",
               circleStrokeWidth: 3
+            }}
+          />
+          <Mapbox.SymbolLayer
+            id="viteg-route-stop-numbers"
+            filter={["==", ["get", "kind"], "stop"] as any}
+            style={{
+              textField: ["to-string", ["get", "sequence"]] as any,
+              textSize: 11,
+              textColor: "white",
+              textAllowOverlap: true,
+              textIgnorePlacement: true
             }}
           />
         </Mapbox.ShapeSource>

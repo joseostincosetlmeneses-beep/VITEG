@@ -21,6 +21,7 @@ import { api } from "./src/api";
 import { Button, Field } from "./src/components";
 import { AdminDashboard, DriverHome, ResourceScreen, RoutesScreen } from "./src/screens";
 import { ClientsScreen, CustomerRequestScreen, RequestsScreen } from "./src/CustomerScreens";
+import { DriverLocationReporter } from "./src/DriverLocationReporter";
 import { colors, radius } from "./src/theme";
 
 const logo = require("./assets/viteg-logo.png");
@@ -346,6 +347,7 @@ function Workspace({
 
   return (
     <SafeAreaView style={styles.workspace}>
+      <DriverLocationReporter enabled={user.role === "DRIVER"} />
       <StatusBar style="dark" />
       <View style={styles.header}>
         <Image source={logo} resizeMode="contain" style={styles.headerLogo} />
