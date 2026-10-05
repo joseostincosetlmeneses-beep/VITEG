@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { ApiResponse, DashboardSummary, SessionUser } from "@viteg/shared";
+import type { ApiResponse, DashboardSummary, Role, SessionUser } from "@viteg/shared";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api";
 const TOKEN_KEY = "viteg.session.token";
@@ -20,10 +20,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  async login(email: string, password: string): Promise<SessionUser> {
+  async login(email: string, password: string, role: Role): Promise<SessionUser> {
     const result = await request<{ token: string; user: SessionUser }>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, role })
     });
     await AsyncStorage.setItem(TOKEN_KEY, result.token);
     return result.user;

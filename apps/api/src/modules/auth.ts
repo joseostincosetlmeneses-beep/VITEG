@@ -10,7 +10,8 @@ import { User } from "../models/index.js";
 
 const loginSchema = z.object({
   email: z.email().transform((value) => value.toLowerCase()),
-  password: z.string().min(8)
+  password: z.string().min(8),
+  role: z.enum(["ADMIN", "DRIVER"])
 });
 
 const registerSchema = z.object({
@@ -65,6 +66,9 @@ authRouter.post(
     const user = await User.findOne({ tenantId: "default", email: input.email }).select("+passwordHash");
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new AppError(401, "Correo o contraseña incorrectos");
+    }
+    if (user.role !== input.role) {
+      throw new AppError(403, "El perfil seleccionado no corresponde a esta cuenta");
     }
     if (user.status !== "ACTIVE") throw new AppError(403, "La cuenta no está activa");
 

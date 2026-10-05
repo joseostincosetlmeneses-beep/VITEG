@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
-import type { SessionUser } from "@viteg/shared";
+import type { Role, SessionUser } from "@viteg/shared";
 import { api } from "./src/api";
 import { Button, Field } from "./src/components";
 import { AdminDashboard, DriverHome, ResourceScreen, RoutesScreen } from "./src/screens";
@@ -101,13 +101,21 @@ function Login({ onSuccess }: { onSuccess: (user: SessionUser) => void }) {
   const [email, setEmail] = useState("admin@viteg.mx");
   const [password, setPassword] = useState("Viteg2026!");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<Role>("ADMIN");
   const [loading, setLoading] = useState(false);
+
+  const selectRole = (nextRole: Role) => {
+    setRole(nextRole);
+    if (email === "admin@viteg.mx" || email === "repartidor@viteg.mx") {
+      setEmail(nextRole === "ADMIN" ? "admin@viteg.mx" : "repartidor@viteg.mx");
+    }
+  };
 
   const submit = async () => {
     setLoading(true);
     try {
       if (mode === "login") {
-        onSuccess(await api.login(email, password));
+        onSuccess(await api.login(email, password, role));
         return;
       }
       if (!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim()) {
@@ -159,6 +167,37 @@ function Login({ onSuccess }: { onSuccess: (user: SessionUser) => void }) {
               : "Regístrate como repartidor para solicitar acceso"}
           </Text>
           <View style={styles.form}>
+            {mode === "login" && (
+              <View style={styles.roleGroup}>
+                <Text style={styles.roleLabel}>Ingresa como</Text>
+                <View style={styles.roleOptions}>
+                  {([
+                    { value: "ADMIN" as const, label: "Administrador", icon: "shield-checkmark-outline" as const },
+                    { value: "DRIVER" as const, label: "Repartidor", icon: "bicycle-outline" as const }
+                  ]).map((option) => {
+                    const selected = role === option.value;
+                    return (
+                      <Pressable
+                        key={option.value}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        onPress={() => selectRole(option.value)}
+                        style={[styles.roleOption, selected && styles.roleOptionSelected]}
+                      >
+                        <Ionicons
+                          name={option.icon}
+                          size={21}
+                          color={selected ? "white" : colors.blue}
+                        />
+                        <Text style={[styles.roleOptionText, selected && styles.roleOptionTextSelected]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
             {mode === "register" && (
               <>
                 <Field
@@ -407,6 +446,25 @@ const styles = StyleSheet.create({
   welcome: { fontSize: 30, fontWeight: "900", color: colors.ink },
   loginSubtitle: { fontSize: 15, lineHeight: 22, color: colors.muted, marginTop: 7 },
   form: { gap: 16, marginTop: 28 },
+  roleGroup: { gap: 8 },
+  roleLabel: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  roleOptions: { flexDirection: "row", gap: 10 },
+  roleOption: {
+    flex: 1,
+    minHeight: 52,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    backgroundColor: "white",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7
+  },
+  roleOptionSelected: { backgroundColor: colors.blue, borderColor: colors.blue },
+  roleOptionText: { color: colors.ink, fontSize: 13, fontWeight: "800" },
+  roleOptionTextSelected: { color: "white" },
   secureGroup: { gap: 7 },
   secureLabel: { color: colors.ink, fontSize: 13, fontWeight: "700" },
   secureInputWrap: {
