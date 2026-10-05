@@ -8,6 +8,7 @@ export type RouteMapPoint = {
   label: string;
   coordinates: [number, number];
   sequence?: number;
+  kind?: "origin" | "stop" | "destination" | "address";
 };
 
 const accessToken = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
@@ -64,7 +65,7 @@ export function RouteMap({ points }: { points: RouteMapPoint[] }) {
     features: orderedPoints.map((point) => ({
       type: "Feature",
       id: point.id,
-      properties: { label: point.label, sequence: point.sequence ?? "" },
+      properties: { label: point.label, sequence: point.sequence ?? "", kind: point.kind ?? "address" },
       geometry: { type: "Point", coordinates: point.coordinates }
     }))
   } as const;
@@ -89,7 +90,18 @@ export function RouteMap({ points }: { points: RouteMapPoint[] }) {
         <Mapbox.ShapeSource id="viteg-route-points" shape={pointCollection as any}>
           <Mapbox.CircleLayer
             id="viteg-route-points-layer"
-            style={{ circleRadius: 8, circleColor: colors.amber, circleStrokeColor: "white", circleStrokeWidth: 3 }}
+            style={{
+              circleRadius: 8,
+              circleColor: [
+                "match",
+                ["get", "kind"],
+                "origin", colors.green,
+                "destination", colors.red,
+                colors.amber
+              ] as any,
+              circleStrokeColor: "white",
+              circleStrokeWidth: 3
+            }}
           />
         </Mapbox.ShapeSource>
       </Mapbox.MapView>

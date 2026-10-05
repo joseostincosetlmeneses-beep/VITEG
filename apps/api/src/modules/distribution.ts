@@ -10,6 +10,8 @@ const createRouteSchema = z.object({
   date: z.coerce.date(),
   zoneId: z.string().optional(),
   driverId: z.string().nullable().optional(),
+  origin: z.object({ label: z.string().min(2), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }).optional(),
+  destination: z.object({ label: z.string().min(2), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }).optional(),
   vehicleLabel: z.string().optional(),
   startTime: z.string().optional(),
   estimatedReturnTime: z.string().optional()

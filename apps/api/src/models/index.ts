@@ -7,6 +7,14 @@ const pointFields = {
   latitude: { type: Number, min: -90, max: 90 },
   longitude: { type: Number, min: -180, max: 180 }
 };
+const routeEndpointSchema = new Schema(
+  {
+    label: { type: String, required: true },
+    latitude: { type: Number, min: -90, max: 90, required: true },
+    longitude: { type: Number, min: -180, max: 180, required: true }
+  },
+  { _id: false }
+);
 const attachmentSchema = new Schema(
   {
     url: { type: String, required: true },
@@ -108,6 +116,8 @@ const routeSchema = new Schema(
     date: { type: Date, required: true, index: true },
     zoneId: { type: Schema.Types.ObjectId, ref: "Zone" },
     driverId: { type: Schema.Types.ObjectId, ref: "User", index: true },
+    origin: routeEndpointSchema,
+    destination: routeEndpointSchema,
     vehicleLabel: String,
     startTime: String,
     estimatedReturnTime: String,

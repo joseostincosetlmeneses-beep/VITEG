@@ -17,6 +17,7 @@ import { api } from "./api";
 import { Button, Card, Field, Loading, SectionTitle, StatusPill } from "./components";
 import { colors, radius } from "./theme";
 import { RouteMap, type RouteMapPoint } from "./RouteMap";
+import { MapboxPlaceSearch, type MapboxPlace } from "./MapboxPlaceSearch";
 
 const icon = (name: keyof typeof Ionicons.glyphMap, size = 20, color: string = colors.muted) => (
   <Ionicons name={name} size={size} color={color} />
@@ -155,12 +156,28 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
     );
   };
   const mapPoints: RouteMapPoint[] = selectedRoute
-    ? selectedStops.flatMap((stop) => {
+    ? [
+        ...(selectedRoute.origin ? [{
+          id: `${selectedRoute._id}-origin`,
+          label: selectedRoute.origin.label,
+          coordinates: [selectedRoute.origin.longitude, selectedRoute.origin.latitude] as [number, number],
+          sequence: 0,
+          kind: "origin" as const
+        }] : []),
+        ...selectedStops.flatMap((stop) => {
         const location = stop.addressId?.location;
         return typeof location?.latitude === "number" && typeof location?.longitude === "number"
-          ? [{ id: stop._id, label: stop.addressId.alias ?? `Parada ${stop.sequence}`, coordinates: [location.longitude, location.latitude] as [number, number], sequence: stop.sequence }]
+          ? [{ id: stop._id, label: stop.addressId.alias ?? `Parada ${stop.sequence}`, coordinates: [location.longitude, location.latitude] as [number, number], sequence: stop.sequence, kind: "stop" as const }]
           : [];
-      })
+        }),
+        ...(selectedRoute.destination ? [{
+          id: `${selectedRoute._id}-destination`,
+          label: selectedRoute.destination.label,
+          coordinates: [selectedRoute.destination.longitude, selectedRoute.destination.latitude] as [number, number],
+          sequence: selectedStops.length + 1,
+          kind: "destination" as const
+        }] : [])
+      ]
     : addresses.flatMap((address) => {
         const location = address.location;
         return typeof location?.latitude === "number" && typeof location?.longitude === "number"
@@ -209,6 +226,13 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
             <View style={{ flex: 1 }}><Text style={styles.routeName}>{route.name}</Text><Text style={styles.rowMeta}>{new Date(route.date).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}</Text></View>
             <StatusPill value={route.status} />
           </View>
+          {(route.origin || route.destination) && (
+            <View style={styles.routeEndpoints}>
+              <View style={styles.endpointRow}>{icon("radio-button-on", 15, colors.green)}<Text numberOfLines={1} style={styles.endpointText}>{route.origin?.label ?? "Sin origen"}</Text></View>
+              <View style={styles.endpointLine} />
+              <View style={styles.endpointRow}>{icon("location", 16, colors.red)}<Text numberOfLines={1} style={styles.endpointText}>{route.destination?.label ?? "Sin destino"}</Text></View>
+            </View>
+          )}
           <View style={styles.routeStats}>
             <SmallStat iconName="location-outline" value={`${route.completedStopCount}/${route.stopCount}`} label="Paradas" />
             <SmallStat iconName="time-outline" value={route.startTime ?? "--:--"} label="Salida" />
@@ -275,6 +299,8 @@ function RouteFormModal({
   const [startTime, setStartTime] = useState("08:00");
   const [vehicleLabel, setVehicleLabel] = useState("");
   const [driverId, setDriverId] = useState("");
+  const [origin, setOrigin] = useState<MapboxPlace | null>(null);
+  const [destination, setDestination] = useState<MapboxPlace | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -284,6 +310,8 @@ function RouteFormModal({
     setStartTime(route?.startTime ?? "08:00");
     setVehicleLabel(route?.vehicleLabel ?? "");
     setDriverId(typeof route?.driverId === "string" ? route.driverId : route?.driverId?._id ?? "");
+    setOrigin(route?.origin ?? null);
+    setDestination(route?.destination ?? null);
   }, [visible, route]);
 
   const save = async () => {
@@ -295,6 +323,10 @@ function RouteFormModal({
       Alert.alert("Ruta", "La fecha debe tener el formato AAAA-MM-DD");
       return;
     }
+    if (!origin || !destination) {
+      Alert.alert("Ruta", "Selecciona el punto de salida y el punto final en Mapbox");
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -302,7 +334,9 @@ function RouteFormModal({
         date: `${date}T12:00:00`,
         startTime: startTime.trim() || undefined,
         vehicleLabel: vehicleLabel.trim() || undefined,
-        driverId: driverId || null
+        driverId: driverId || null,
+        origin,
+        destination
       };
       if (route) await api.updateRoute(route._id, payload);
       else await api.createRoute(payload);
@@ -329,6 +363,8 @@ function RouteFormModal({
             <Field label="Nombre de la ruta" value={name} onChangeText={setName} placeholder="Ej. Ruta Centro" />
             <Field label="Fecha (AAAA-MM-DD)" value={date} onChangeText={setDate} placeholder="2026-10-05" autoCapitalize="none" />
             <Field label="Hora de salida" value={startTime} onChangeText={setStartTime} placeholder="08:00" autoCapitalize="none" />
+            <MapboxPlaceSearch label="Punto de salida" value={origin} onChange={setOrigin} />
+            <MapboxPlaceSearch label="Punto final" value={destination} onChange={setDestination} />
             <Field label="Camioneta o unidad" value={vehicleLabel} onChangeText={setVehicleLabel} placeholder="Ej. Nissan NP300 · VITEG-01" />
             <View style={{ gap: 8 }}>
               <Text style={styles.fieldLabel}>Asignar repartidor</Text>
@@ -495,6 +531,10 @@ const styles = StyleSheet.create({
   routeStats: { flexDirection: "row", flexWrap: "wrap", gap: 22, paddingVertical: 18 },
   routeCard: { marginBottom: 12 },
   routeCardSelected: { borderColor: colors.blue, borderWidth: 2 },
+  routeEndpoints: { marginTop: 14, padding: 12, borderRadius: 11, backgroundColor: colors.background },
+  endpointRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  endpointText: { flex: 1, color: colors.ink, fontSize: 12, fontWeight: "700" },
+  endpointLine: { width: 2, height: 12, marginLeft: 6, marginVertical: 2, backgroundColor: colors.border },
   routeActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 4 },
   routeAction: { minHeight: 40, paddingHorizontal: 12, borderRadius: 9, backgroundColor: colors.softBlue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   routeActionDanger: { backgroundColor: colors.softRed },
