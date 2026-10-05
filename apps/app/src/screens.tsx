@@ -19,6 +19,7 @@ import { colors, radius } from "./theme";
 import { RouteMap, type RouteMapPoint } from "./RouteMap";
 import { MapboxPlaceSearch, type MapboxPlace } from "./MapboxPlaceSearch";
 import { RoutePointPickerModal } from "./RoutePointPickerModal";
+import { RouteItinerarySheet } from "./RouteItinerarySheet";
 
 const icon = (name: keyof typeof Ionicons.glyphMap, size = 20, color: string = colors.muted) => (
   <Ionicons name={name} size={size} color={color} />
@@ -321,7 +322,10 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.amber }]} /><Text style={styles.legendText}>Paradas</Text></View>
               <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.red }]} /><Text style={styles.legendText}>Destino</Text></View>
             </View>
-            <RouteMap points={mapPoints} fullScreen />
+            <View style={styles.fullscreenMapArea}>
+              <RouteMap points={mapPoints} fullScreen showCaption={false} />
+              <RouteItinerarySheet route={selectedRoute} />
+            </View>
           </SafeAreaView>
         </Modal>
       )}
@@ -807,6 +811,7 @@ const styles = StyleSheet.create({
   customerPin: { position: "absolute", width: 14, height: 14, borderRadius: 7, backgroundColor: colors.amber, borderWidth: 3, borderColor: "white" },
   mapNote: { position: "absolute", bottom: 12, alignSelf: "center", backgroundColor: "rgba(255,255,255,.9)", color: colors.muted, fontSize: 11, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   fullscreenMapRoot: { flex: 1, backgroundColor: "white" },
+  fullscreenMapArea: { flex: 1, position: "relative" },
   fullscreenMapHeader: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "white", borderBottomWidth: 1, borderBottomColor: colors.border },
   fullscreenMapTitle: { color: colors.ink, fontSize: 19, fontWeight: "900" },
   fullscreenMapSubtitle: { color: colors.muted, fontSize: 12, marginTop: 3 },
