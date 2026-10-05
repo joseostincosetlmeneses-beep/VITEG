@@ -791,11 +791,11 @@ export const driverNavigation = [
 
 const styles = StyleSheet.create({
   page: { padding: 16, gap: 14, width: "100%", alignSelf: "center" },
-  metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  metric: { flexGrow: 1, flexBasis: 190, minWidth: 175 },
-  metricIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", marginBottom: 14 },
-  metricValue: { fontSize: 27, fontWeight: "900", color: colors.ink },
-  metricLabel: { fontSize: 13, color: colors.muted, marginTop: 3 },
+  metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  metric: { flexGrow: 1, flexBasis: "46%", maxWidth: "49%", minWidth: 0, minHeight: 132, padding: 14 },
+  metricIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  metricValue: { fontSize: 24, lineHeight: 29, fontWeight: "900", color: colors.ink },
+  metricLabel: { fontSize: 11, lineHeight: 15, color: colors.muted, marginTop: 3 },
   twoColumns: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
   cardHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 },
   cardTitle: { fontSize: 17, fontWeight: "800", color: colors.ink },
