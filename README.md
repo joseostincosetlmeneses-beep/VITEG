@@ -43,16 +43,22 @@ VITEG/
 
 ```bash
 npm install
-docker compose up -d
-copy .env.example .env
 npm run seed
 npm run dev
 ```
 
-En PowerShell también puede copiarse el archivo con:
+Para MongoDB Atlas, cree `apps/api/.env` con las variables `MONGODB_USERNAME`,
+`MONGODB_PASSWORD`, `MONGODB_HOST` y `MONGODB_DATABASE`. La aplicación móvil
+lee sus direcciones desde `apps/app/.env`. Ambos archivos están excluidos de Git.
+El backend codifica las credenciales al construir la URI, por lo que una contraseña
+generada por Atlas puede conservar sus caracteres especiales.
+También admite `MONGODB_REPLICA_SET` y una lista de hosts estándar cuando una red
+local bloquea las consultas DNS SRV de `mongodb+srv`.
 
-```powershell
-Copy-Item .env.example .env
+Para utilizar MongoDB local en lugar de Atlas, omita esas cuatro variables y ejecute:
+
+```bash
+docker compose up -d
 ```
 
 Servicios locales:
