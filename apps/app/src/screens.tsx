@@ -98,6 +98,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
   const [routes, setRoutes] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
   const [selectedStops, setSelectedStops] = useState<any[]>([]);
   const [mapFullscreen, setMapFullscreen] = useState(false);
@@ -106,14 +107,16 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     try {
-      const [nextRoutes, nextDrivers, nextAddresses] = await Promise.all([
+      const [nextRoutes, nextDrivers, nextAddresses, nextProducts] = await Promise.all([
         api.routes(),
         driver ? Promise.resolve([]) : api.drivers(),
-        driver ? Promise.resolve([]) : api.addresses()
+        driver ? Promise.resolve([]) : api.addresses(),
+        driver ? Promise.resolve([]) : api.list("/products")
       ]);
       setRoutes(nextRoutes);
       setDrivers(nextDrivers.filter((item) => item.status === "ACTIVE"));
       setAddresses(nextAddresses.filter((item) => item.status === "ACTIVE"));
+      setProducts(nextProducts.filter((item) => item.isActive !== false));
       if (selectedRoute) {
         setSelectedRoute(nextRoutes.find((item) => item._id === selectedRoute._id) ?? null);
       }
@@ -224,6 +227,15 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
               <View style={styles.endpointRow}>{icon("location", 16, colors.red)}<Text numberOfLines={1} style={styles.endpointText}>{route.destination?.label ?? "Sin destino"}</Text></View>
             </View>
           )}
+          {route.waypoints?.some((point: any) => (point.priority ?? 0) >= 90) && (
+            <View style={styles.routePriorityAlert}>
+              {icon("snow-outline", 18, colors.red)}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.routePriorityTitle}>Ruta con productos prioritarios</Text>
+                <Text style={styles.routePriorityText}>Incluye hielo u otros productos que requieren entrega temprana.</Text>
+              </View>
+            </View>
+          )}
           <View style={styles.routeStats}>
             <SmallStat iconName="location-outline" value={`${route.completedStopCount}/${(route.stopCount ?? 0) + (route.waypoints?.length ?? 0)}`} label="Paradas" />
             <SmallStat iconName="time-outline" value={route.startTime ?? "--:--"} label="Salida" />
@@ -270,6 +282,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           route={editingRoute}
           drivers={drivers}
           addresses={addresses}
+          products={products}
           onClose={() => setFormVisible(false)}
           onSaved={() => {
             setFormVisible(false);
@@ -321,6 +334,7 @@ function RouteFormModal({
   route,
   drivers,
   addresses,
+  products,
   onClose,
   onSaved
 }: {
@@ -328,6 +342,7 @@ function RouteFormModal({
   route: any | null;
   drivers: any[];
   addresses: any[];
+  products: any[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -341,6 +356,7 @@ function RouteFormModal({
   const [waypoints, setWaypoints] = useState<MapboxPlace[]>([]);
   const [stopCandidate, setStopCandidate] = useState<MapboxPlace | null>(null);
   const [pointPickerVisible, setPointPickerVisible] = useState(false);
+  const [productStopIndex, setProductStopIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -357,9 +373,15 @@ function RouteFormModal({
       latitude: point.latitude,
       longitude: point.longitude,
       customerId: typeof point.customerId === "string" ? point.customerId : point.customerId?._id,
-      addressId: typeof point.addressId === "string" ? point.addressId : point.addressId?._id
+      addressId: typeof point.addressId === "string" ? point.addressId : point.addressId?._id,
+      items: Array.isArray(point.items) ? point.items.map((item: any) => ({
+        productId: typeof item.productId === "string" ? item.productId : item.productId?._id,
+        expectedQuantity: item.expectedQuantity
+      })).filter((item: any) => item.productId) : [],
+      priority: point.priority ?? 0
     })) : []);
     setStopCandidate(null);
+    setProductStopIndex(null);
   }, [visible, route]);
 
   const save = async () => {
@@ -487,11 +509,31 @@ function RouteFormModal({
               )}
               {waypoints.length > 0 && (
                 <View style={styles.waypointList}>
-                  <Text style={styles.waypointListTitle}>{waypoints.length} parada{waypoints.length === 1 ? "" : "s"} intermedia{waypoints.length === 1 ? "" : "s"}</Text>
+                  <View style={styles.waypointListHeading}>
+                    <Text style={styles.waypointListTitle}>{waypoints.length} parada{waypoints.length === 1 ? "" : "s"} intermedia{waypoints.length === 1 ? "" : "s"}</Text>
+                    <Pressable
+                      style={styles.prioritySortButton}
+                      onPress={() => setWaypoints([...waypoints].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0)))}
+                    >
+                      {icon("snow-outline", 16, colors.blue)}
+                      <Text style={styles.prioritySortText}>Ordenar prioridad</Text>
+                    </Pressable>
+                  </View>
                   {waypoints.map((point, index) => (
                     <View key={`${point.latitude}-${point.longitude}-${index}`} style={styles.waypointRow}>
                       <View style={styles.waypointNumber}><Text style={styles.waypointNumberText}>{index + 1}</Text></View>
-                      <Text numberOfLines={2} style={styles.waypointText}>{point.label}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={styles.waypointText}>{point.label}</Text>
+                        <Text numberOfLines={1} style={[styles.waypointProducts, (point.priority ?? 0) >= 90 && { color: colors.red }]}>
+                          {point.items?.length
+                            ? `${point.items.length} producto${point.items.length === 1 ? "" : "s"}${(point.priority ?? 0) >= 90 ? " · Prioridad alta" : ""}`
+                            : "Sin productos asignados"}
+                        </Text>
+                      </View>
+                      <Pressable style={styles.productButton} onPress={() => setProductStopIndex(index)}>
+                        {icon("cube-outline", 18, colors.blue)}
+                        <Text style={styles.productButtonText}>Productos</Text>
+                      </Pressable>
                       <Pressable onPress={() => setWaypoints(waypoints.filter((_, itemIndex) => itemIndex !== index))}>
                         {icon("trash-outline", 19, colors.red)}
                       </Pressable>
@@ -539,6 +581,97 @@ function RouteFormModal({
         onWaypointsChange={setWaypoints}
         onClose={() => setPointPickerVisible(false)}
       />
+      <ProductAssignmentModal
+        visible={productStopIndex !== null}
+        waypoint={productStopIndex === null ? null : waypoints[productStopIndex] ?? null}
+        products={products}
+        onClose={() => setProductStopIndex(null)}
+        onSave={(items, priority) => {
+          if (productStopIndex === null) return;
+          setWaypoints(waypoints.map((point, index) => index === productStopIndex ? { ...point, items, priority } : point));
+          setProductStopIndex(null);
+        }}
+      />
+    </Modal>
+  );
+}
+
+function ProductAssignmentModal({
+  visible,
+  waypoint,
+  products,
+  onClose,
+  onSave
+}: {
+  visible: boolean;
+  waypoint: MapboxPlace | null;
+  products: any[];
+  onClose: () => void;
+  onSave: (items: Array<{ productId: string; expectedQuantity: number }>, priority: number) => void;
+}) {
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!visible) return;
+    setQuantities(Object.fromEntries((waypoint?.items ?? []).map((item) => [item.productId, item.expectedQuantity])));
+  }, [visible, waypoint]);
+  const changeQuantity = (productId: string, difference: number) => {
+    setQuantities((current) => ({ ...current, [productId]: Math.max(0, (current[productId] ?? 0) + difference) }));
+  };
+  const selectedProducts = products.filter((product) => (quantities[product._id] ?? 0) > 0);
+  const priority = selectedProducts.reduce((highest, product) => Math.max(highest, product.logisticsPriority ?? 0), 0);
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.productModalCard}>
+          <View style={styles.productModalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle}>Productos de la parada</Text>
+              <Text numberOfLines={1} style={styles.cardSubtitle}>{waypoint?.label}</Text>
+            </View>
+            <Pressable style={styles.modalClose} onPress={onClose}>{icon("close", 24, colors.ink)}</Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.productModalContent}>
+            {products.length === 0 ? (
+              <Text style={styles.noCustomersText}>No hay productos activos. Agrégalos primero desde el catálogo de Productos.</Text>
+            ) : products.map((product) => {
+              const quantity = quantities[product._id] ?? 0;
+              const highPriority = (product.logisticsPriority ?? 0) >= 90;
+              return (
+                <View key={product._id} style={[styles.productOption, quantity > 0 && styles.productOptionSelected]}>
+                  <View style={[styles.productIcon, highPriority && { backgroundColor: colors.softRed }]}>
+                    {icon(product.category === "HIELO" ? "snow-outline" : "cube-outline", 21, highPriority ? colors.red : colors.blue)}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.productName}>{product.name}</Text>
+                    <Text style={styles.productMeta}>{product.category} · {product.unit}{highPriority ? " · PRIORIDAD ALTA" : ""}</Text>
+                  </View>
+                  <View style={styles.quantityControl}>
+                    <Pressable style={styles.quantityButton} onPress={() => changeQuantity(product._id, -1)}>{icon("remove", 18, colors.blue)}</Pressable>
+                    <Text style={styles.quantity}>{quantity}</Text>
+                    <Pressable style={styles.quantityButton} onPress={() => changeQuantity(product._id, 1)}>{icon("add", 18, colors.blue)}</Pressable>
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.productModalFooter}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.productSummary}>{selectedProducts.length} producto{selectedProducts.length === 1 ? "" : "s"} seleccionado{selectedProducts.length === 1 ? "" : "s"}</Text>
+              {priority >= 90 && <Text style={styles.highPriorityText}>Esta parada requiere atención prioritaria</Text>}
+            </View>
+            <Button
+              label="Guardar"
+              icon="checkmark"
+              onPress={() => onSave(
+                products.flatMap((product) => (quantities[product._id] ?? 0) > 0
+                  ? [{ productId: product._id, expectedQuantity: quantities[product._id]! }]
+                  : []),
+                priority
+              )}
+            />
+          </View>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -691,6 +824,9 @@ const styles = StyleSheet.create({
   endpointRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   endpointText: { flex: 1, color: colors.ink, fontSize: 12, fontWeight: "700" },
   endpointLine: { width: 2, height: 12, marginLeft: 6, marginVertical: 2, backgroundColor: colors.border },
+  routePriorityAlert: { marginTop: 10, padding: 10, borderRadius: radius.sm, backgroundColor: colors.softRed, flexDirection: "row", alignItems: "center", gap: 9 },
+  routePriorityTitle: { color: colors.red, fontSize: 11, fontWeight: "900" },
+  routePriorityText: { color: colors.muted, fontSize: 9, lineHeight: 13, marginTop: 2 },
   routeActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 4 },
   routeAction: { minHeight: 40, paddingHorizontal: 12, borderRadius: 9, backgroundColor: colors.softBlue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   routeActionDanger: { backgroundColor: colors.softRed },
@@ -713,13 +849,33 @@ const styles = StyleSheet.create({
   addStopButton: { minHeight: 44, borderRadius: radius.sm, backgroundColor: colors.softBlue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
   addStopText: { color: colors.blue, fontSize: 12, fontWeight: "900" },
   waypointList: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, overflow: "hidden" },
-  waypointListTitle: { color: colors.ink, fontSize: 12, fontWeight: "900", paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.background },
+  waypointListHeading: { minHeight: 48, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: colors.background, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  waypointListTitle: { flex: 1, color: colors.ink, fontSize: 12, fontWeight: "900" },
+  prioritySortButton: { minHeight: 32, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colors.softBlue, flexDirection: "row", alignItems: "center", gap: 4 },
+  prioritySortText: { color: colors.blue, fontSize: 9, fontWeight: "900" },
   waypointRow: { minHeight: 50, paddingHorizontal: 10, paddingVertical: 7, flexDirection: "row", alignItems: "center", gap: 9, borderTopWidth: 1, borderTopColor: colors.border },
   waypointNumber: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.amber },
   waypointNumberText: { color: "white", fontSize: 11, fontWeight: "900" },
   waypointText: { flex: 1, color: colors.ink, fontSize: 11, lineHeight: 15, fontWeight: "700" },
+  waypointProducts: { color: colors.muted, fontSize: 9, lineHeight: 13, marginTop: 2, fontWeight: "700" },
+  productButton: { minHeight: 34, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colors.softBlue, flexDirection: "row", alignItems: "center", gap: 4 },
+  productButtonText: { color: colors.blue, fontSize: 9, fontWeight: "900" },
   reorderButton: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.softBlue },
   reorderText: { color: colors.blue, fontSize: 11, fontWeight: "900" },
+  productModalCard: { maxHeight: "88%", backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" },
+  productModalHeader: { padding: 18, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  productModalContent: { padding: 14, gap: 9 },
+  productOption: { minHeight: 70, padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: "white", flexDirection: "row", alignItems: "center", gap: 10 },
+  productOptionSelected: { borderColor: colors.blue, backgroundColor: colors.softBlue },
+  productIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.softBlue, alignItems: "center", justifyContent: "center" },
+  productName: { color: colors.ink, fontSize: 13, fontWeight: "900" },
+  productMeta: { color: colors.muted, fontSize: 9, marginTop: 3, fontWeight: "700" },
+  quantityControl: { flexDirection: "row", alignItems: "center", gap: 6 },
+  quantityButton: { width: 34, height: 34, borderRadius: 10, backgroundColor: "white", borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  quantity: { minWidth: 22, textAlign: "center", color: colors.ink, fontSize: 14, fontWeight: "900" },
+  productModalFooter: { padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: "white" },
+  productSummary: { color: colors.ink, fontSize: 11, fontWeight: "800" },
+  highPriorityText: { color: colors.red, fontSize: 9, fontWeight: "900", marginTop: 3 },
   fieldLabel: { color: colors.ink, fontSize: 13, fontWeight: "700" },
   driverOption: { minHeight: 54, paddingHorizontal: 13, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: "white", flexDirection: "row", alignItems: "center", gap: 10 },
   driverOptionSelected: { backgroundColor: colors.blue, borderColor: colors.blue },

@@ -17,7 +17,12 @@ const createRouteSchema = z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
     customerId: z.string().optional(),
-    addressId: z.string().optional()
+    addressId: z.string().optional(),
+    items: z.array(z.object({
+      productId: z.string(),
+      expectedQuantity: z.number().positive()
+    })).default([]),
+    priority: z.number().min(0).max(100).default(0)
   })).max(23).default([]),
   vehicleLabel: z.string().optional(),
   startTime: z.string().optional(),
@@ -65,6 +70,7 @@ distributionRouter.get(
       .populate("zoneId")
       .populate("waypoints.customerId", "businessName firstName lastName phone")
       .populate("waypoints.addressId", "alias street reference location")
+      .populate("waypoints.items.productId", "code name category unit logisticsPriority")
       .sort({ date: -1 });
     response.json({ data: routes });
   })

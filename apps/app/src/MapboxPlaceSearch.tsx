@@ -9,6 +9,8 @@ export type MapboxPlace = {
   longitude: number;
   customerId?: string;
   addressId?: string;
+  items?: Array<{ productId: string; expectedQuantity: number }>;
+  priority?: number;
 };
 
 type SearchResult = {

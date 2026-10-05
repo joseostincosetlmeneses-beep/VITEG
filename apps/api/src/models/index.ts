@@ -15,13 +15,22 @@ const routeEndpointSchema = new Schema(
   },
   { _id: false }
 );
+const routeWaypointItemSchema = new Schema(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    expectedQuantity: { type: Number, min: 0.01, required: true }
+  },
+  { _id: false }
+);
 const routeWaypointSchema = new Schema(
   {
     label: { type: String, required: true },
     latitude: { type: Number, min: -90, max: 90, required: true },
     longitude: { type: Number, min: -180, max: 180, required: true },
     customerId: { type: Schema.Types.ObjectId, ref: "Customer" },
-    addressId: { type: Schema.Types.ObjectId, ref: "CustomerAddress" }
+    addressId: { type: Schema.Types.ObjectId, ref: "CustomerAddress" },
+    items: { type: [routeWaypointItemSchema], default: [] },
+    priority: { type: Number, min: 0, max: 100, default: 0 }
   },
   { _id: false }
 );
