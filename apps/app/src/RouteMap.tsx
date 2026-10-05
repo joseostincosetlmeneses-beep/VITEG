@@ -14,7 +14,15 @@ export type RouteMapPoint = {
 const accessToken = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
 if (accessToken) Mapbox.setAccessToken(accessToken);
 
-export function RouteMap({ points, fullScreen = false }: { points: RouteMapPoint[]; fullScreen?: boolean }) {
+export function RouteMap({
+  points,
+  fullScreen = false,
+  onMapPress
+}: {
+  points: RouteMapPoint[];
+  fullScreen?: boolean;
+  onMapPress?: (coordinates: [number, number]) => void;
+}) {
   const [roadCoordinates, setRoadCoordinates] = useState<[number, number][]>([]);
   const orderedPoints = useMemo(
     () => [...points].sort((a, b) => (a.sequence ?? 9999) - (b.sequence ?? 9999)),
@@ -93,6 +101,12 @@ export function RouteMap({ points, fullScreen = false }: { points: RouteMapPoint
         attributionEnabled
         compassEnabled
         rotateEnabled
+        onPress={onMapPress ? (feature) => {
+          const coordinates = feature.geometry?.coordinates;
+          if (Array.isArray(coordinates) && coordinates.length >= 2) {
+            onMapPress([Number(coordinates[0]), Number(coordinates[1])]);
+          }
+        } : undefined}
       >
         <Mapbox.Camera
           centerCoordinate={bounds ? undefined : center}

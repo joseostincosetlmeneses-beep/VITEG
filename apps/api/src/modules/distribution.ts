@@ -12,6 +12,7 @@ const createRouteSchema = z.object({
   driverId: z.string().nullable().optional(),
   origin: z.object({ label: z.string().min(2), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }).optional(),
   destination: z.object({ label: z.string().min(2), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }).optional(),
+  waypoints: z.array(z.object({ label: z.string().min(2), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) })).max(23).default([]),
   vehicleLabel: z.string().optional(),
   startTime: z.string().optional(),
   estimatedReturnTime: z.string().optional()

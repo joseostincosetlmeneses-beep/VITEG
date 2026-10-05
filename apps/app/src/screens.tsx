@@ -18,6 +18,7 @@ import { Button, Card, Field, Loading, SectionTitle, StatusPill } from "./compon
 import { colors, radius } from "./theme";
 import { RouteMap, type RouteMapPoint } from "./RouteMap";
 import { MapboxPlaceSearch, type MapboxPlace } from "./MapboxPlaceSearch";
+import { RoutePointPickerModal } from "./RoutePointPickerModal";
 
 const icon = (name: keyof typeof Ionicons.glyphMap, size = 20, color: string = colors.muted) => (
   <Ionicons name={name} size={size} color={color} />
@@ -156,6 +157,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
       ]
     );
   };
+  const plannedWaypoints = Array.isArray(selectedRoute?.waypoints) ? selectedRoute.waypoints : [];
   const mapPoints: RouteMapPoint[] = selectedRoute
     ? [
         ...(selectedRoute.origin ? [{
@@ -165,17 +167,24 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           sequence: 0,
           kind: "origin" as const
         }] : []),
+        ...plannedWaypoints.map((point: MapboxPlace, index: number) => ({
+          id: `${selectedRoute._id}-waypoint-${index}`,
+          label: point.label,
+          coordinates: [point.longitude, point.latitude] as [number, number],
+          sequence: index + 1,
+          kind: "stop" as const
+        })),
         ...selectedStops.flatMap((stop) => {
         const location = stop.addressId?.location;
         return typeof location?.latitude === "number" && typeof location?.longitude === "number"
-          ? [{ id: stop._id, label: stop.addressId.alias ?? `Parada ${stop.sequence}`, coordinates: [location.longitude, location.latitude] as [number, number], sequence: stop.sequence, kind: "stop" as const }]
+          ? [{ id: stop._id, label: stop.addressId.alias ?? `Parada ${stop.sequence}`, coordinates: [location.longitude, location.latitude] as [number, number], sequence: plannedWaypoints.length + stop.sequence, kind: "stop" as const }]
           : [];
         }),
         ...(selectedRoute.destination ? [{
           id: `${selectedRoute._id}-destination`,
           label: selectedRoute.destination.label,
           coordinates: [selectedRoute.destination.longitude, selectedRoute.destination.latitude] as [number, number],
-          sequence: selectedStops.length + 1,
+          sequence: plannedWaypoints.length + selectedStops.length + 1,
           kind: "destination" as const
         }] : [])
       ]
@@ -242,7 +251,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
             </View>
           )}
           <View style={styles.routeStats}>
-            <SmallStat iconName="location-outline" value={`${route.completedStopCount}/${route.stopCount}`} label="Paradas" />
+            <SmallStat iconName="location-outline" value={`${route.completedStopCount}/${(route.stopCount ?? 0) + (route.waypoints?.length ?? 0)}`} label="Paradas" />
             <SmallStat iconName="time-outline" value={route.startTime ?? "--:--"} label="Salida" />
             <SmallStat iconName="car-outline" value={route.vehicleLabel ?? "Sin unidad"} label="Vehículo" />
           </View>
@@ -350,6 +359,9 @@ function RouteFormModal({
   const [driverId, setDriverId] = useState("");
   const [origin, setOrigin] = useState<MapboxPlace | null>(null);
   const [destination, setDestination] = useState<MapboxPlace | null>(null);
+  const [waypoints, setWaypoints] = useState<MapboxPlace[]>([]);
+  const [stopCandidate, setStopCandidate] = useState<MapboxPlace | null>(null);
+  const [pointPickerVisible, setPointPickerVisible] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -361,6 +373,8 @@ function RouteFormModal({
     setDriverId(typeof route?.driverId === "string" ? route.driverId : route?.driverId?._id ?? "");
     setOrigin(route?.origin ?? null);
     setDestination(route?.destination ?? null);
+    setWaypoints(Array.isArray(route?.waypoints) ? route.waypoints : []);
+    setStopCandidate(null);
   }, [visible, route]);
 
   const save = async () => {
@@ -385,7 +399,8 @@ function RouteFormModal({
         vehicleLabel: vehicleLabel.trim() || undefined,
         driverId: driverId || null,
         origin,
-        destination
+        destination,
+        waypoints
       };
       if (route) await api.updateRoute(route._id, payload);
       else await api.createRoute(payload);
@@ -412,8 +427,57 @@ function RouteFormModal({
             <Field label="Nombre de la ruta" value={name} onChangeText={setName} placeholder="Ej. Ruta Centro" />
             <Field label="Fecha (AAAA-MM-DD)" value={date} onChangeText={setDate} placeholder="2026-10-05" autoCapitalize="none" />
             <Field label="Hora de salida" value={startTime} onChangeText={setStartTime} placeholder="08:00" autoCapitalize="none" />
-            <MapboxPlaceSearch label="Punto de salida" value={origin} onChange={setOrigin} />
-            <MapboxPlaceSearch label="Punto final" value={destination} onChange={setDestination} />
+            <View style={styles.routePointSection}>
+              <View>
+                <Text style={styles.cardTitle}>Puntos del recorrido</Text>
+                <Text style={styles.cardSubtitle}>Usa el buscador o fija cualquier coordenada directamente.</Text>
+              </View>
+              <Pressable style={styles.pickOnMapButton} onPress={() => setPointPickerVisible(true)}>
+                {icon("map-outline", 21, "white")}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pickOnMapTitle}>Seleccionar directamente en el mapa</Text>
+                  <Text style={styles.pickOnMapSubtitle}>Origen, paradas y destino aunque el lugar no aparezca</Text>
+                </View>
+                {icon("chevron-forward", 20, "white")}
+              </Pressable>
+              <MapboxPlaceSearch label="Punto de salida" value={origin} onChange={setOrigin} />
+              <MapboxPlaceSearch label="Buscar una parada intermedia" value={stopCandidate} onChange={setStopCandidate} />
+              {stopCandidate && (
+                <Pressable
+                  style={styles.addStopButton}
+                  onPress={() => {
+                    if (waypoints.length >= 23) {
+                      Alert.alert("Límite de paradas", "Una ruta puede contener hasta 23 paradas intermedias.");
+                      return;
+                    }
+                    setWaypoints([...waypoints, stopCandidate]);
+                    setStopCandidate(null);
+                  }}
+                >
+                  {icon("add-circle", 19, colors.blue)}
+                  <Text style={styles.addStopText}>Añadir como parada {waypoints.length + 1}</Text>
+                </Pressable>
+              )}
+              {waypoints.length > 0 && (
+                <View style={styles.waypointList}>
+                  <Text style={styles.waypointListTitle}>{waypoints.length} parada{waypoints.length === 1 ? "" : "s"} intermedia{waypoints.length === 1 ? "" : "s"}</Text>
+                  {waypoints.map((point, index) => (
+                    <View key={`${point.latitude}-${point.longitude}-${index}`} style={styles.waypointRow}>
+                      <View style={styles.waypointNumber}><Text style={styles.waypointNumberText}>{index + 1}</Text></View>
+                      <Text numberOfLines={2} style={styles.waypointText}>{point.label}</Text>
+                      <Pressable onPress={() => setWaypoints(waypoints.filter((_, itemIndex) => itemIndex !== index))}>
+                        {icon("trash-outline", 19, colors.red)}
+                      </Pressable>
+                    </View>
+                  ))}
+                  <Pressable style={styles.reorderButton} onPress={() => setPointPickerVisible(true)}>
+                    {icon("swap-vertical-outline", 18, colors.blue)}
+                    <Text style={styles.reorderText}>Ordenar paradas en el mapa</Text>
+                  </Pressable>
+                </View>
+              )}
+              <MapboxPlaceSearch label="Punto final" value={destination} onChange={setDestination} />
+            </View>
             <Field label="Camioneta o unidad" value={vehicleLabel} onChangeText={setVehicleLabel} placeholder="Ej. Nissan NP300 · VITEG-01" />
             <View style={{ gap: 8 }}>
               <Text style={styles.fieldLabel}>Asignar repartidor</Text>
@@ -438,6 +502,16 @@ function RouteFormModal({
           </ScrollView>
         </View>
       </View>
+      <RoutePointPickerModal
+        visible={pointPickerVisible}
+        origin={origin}
+        destination={destination}
+        waypoints={waypoints}
+        onOriginChange={setOrigin}
+        onDestinationChange={setDestination}
+        onWaypointsChange={setWaypoints}
+        onClose={() => setPointPickerVisible(false)}
+      />
     </Modal>
   );
 }
@@ -606,6 +680,20 @@ const styles = StyleSheet.create({
   modalContent: { padding: 20, paddingBottom: 36, gap: 16 },
   modalTitle: { color: colors.ink, fontSize: 24, fontWeight: "900" },
   modalClose: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "white" },
+  routePointSection: { gap: 12, padding: 13, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: "white" },
+  pickOnMapButton: { minHeight: 68, paddingHorizontal: 13, paddingVertical: 11, borderRadius: radius.sm, backgroundColor: colors.blue, flexDirection: "row", alignItems: "center", gap: 10 },
+  pickOnMapTitle: { color: "white", fontSize: 13, fontWeight: "900" },
+  pickOnMapSubtitle: { color: "#D9EAFB", fontSize: 10, lineHeight: 15, marginTop: 2 },
+  addStopButton: { minHeight: 44, borderRadius: radius.sm, backgroundColor: colors.softBlue, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  addStopText: { color: colors.blue, fontSize: 12, fontWeight: "900" },
+  waypointList: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, overflow: "hidden" },
+  waypointListTitle: { color: colors.ink, fontSize: 12, fontWeight: "900", paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.background },
+  waypointRow: { minHeight: 50, paddingHorizontal: 10, paddingVertical: 7, flexDirection: "row", alignItems: "center", gap: 9, borderTopWidth: 1, borderTopColor: colors.border },
+  waypointNumber: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.amber },
+  waypointNumberText: { color: "white", fontSize: 11, fontWeight: "900" },
+  waypointText: { flex: 1, color: colors.ink, fontSize: 11, lineHeight: 15, fontWeight: "700" },
+  reorderButton: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.softBlue },
+  reorderText: { color: colors.blue, fontSize: 11, fontWeight: "900" },
   fieldLabel: { color: colors.ink, fontSize: 13, fontWeight: "700" },
   driverOption: { minHeight: 54, paddingHorizontal: 13, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: "white", flexDirection: "row", alignItems: "center", gap: 10 },
   driverOptionSelected: { backgroundColor: colors.blue, borderColor: colors.blue },

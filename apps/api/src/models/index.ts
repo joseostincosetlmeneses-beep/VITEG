@@ -118,6 +118,7 @@ const routeSchema = new Schema(
     driverId: { type: Schema.Types.ObjectId, ref: "User", index: true },
     origin: routeEndpointSchema,
     destination: routeEndpointSchema,
+    waypoints: { type: [routeEndpointSchema], default: [] },
     vehicleLabel: String,
     startTime: String,
     estimatedReturnTime: String,
