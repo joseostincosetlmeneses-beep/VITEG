@@ -211,32 +211,6 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           />
         ) : undefined}
       />
-      {!driver && (
-        <Card style={styles.mapCard}>
-          <View style={styles.cardHeading}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{selectedRoute ? selectedRoute.name : "Mapa de cobertura"}</Text>
-              <Text style={styles.cardSubtitle}>
-                {selectedRoute ? "Paradas ordenadas y recorrido por calles" : "Domicilios disponibles para planear rutas"}
-              </Text>
-            </View>
-            <View style={styles.mapHeaderActions}>
-              {selectedRoute && (
-                <Pressable style={styles.mapReset} onPress={() => setSelectedRoute(null)}>
-                  {icon("close", 18, colors.blue)}
-                  <Text style={styles.mapResetText}>Ver todos</Text>
-                </Pressable>
-              )}
-              <Pressable style={styles.mapExpand} onPress={() => setMapFullscreen(true)}>
-                {icon("expand-outline", 19, "white")}
-                <Text style={styles.mapExpandText}>Ampliar</Text>
-              </Pressable>
-            </View>
-          </View>
-          <RouteMap points={mapPoints} />
-          <Text style={styles.mapHelp}>Toca “Ampliar” para mover el mapa, acercar con dos dedos y revisar toda la ruta.</Text>
-        </Card>
-      )}
       {routes.length === 0 ? <Card><Empty text="No hay rutas disponibles." /></Card> : routes.map((route) => (
         <Card key={route._id} style={[styles.routeCard, selectedRoute?._id === route._id ? styles.routeCardSelected : {}]}>
           <View style={styles.rowTop}>
@@ -258,18 +232,19 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           {driver && ["ASSIGNED", "IN_PROGRESS"].includes(route.status) && (
             <Button label={route.status === "ASSIGNED" ? "Iniciar ruta" : "Finalizar ruta"} icon={route.status === "ASSIGNED" ? "play" : "flag"} onPress={() => void updateStatus(route)} />
           )}
-          {!driver && (
-            <View style={styles.routeActions}>
-              <Pressable
-                style={styles.routeAction}
-                onPress={() => {
-                  setSelectedRoute(route);
-                  setMapFullscreen(true);
-                }}
-              >
-                {icon("map-outline", 18, colors.blue)}
-                <Text style={styles.routeActionText}>Mapa</Text>
-              </Pressable>
+          <View style={styles.routeActions}>
+            <Pressable
+              style={styles.routeAction}
+              onPress={() => {
+                setSelectedRoute(route);
+                setMapFullscreen(true);
+              }}
+            >
+              {icon("map-outline", 18, colors.blue)}
+              <Text style={styles.routeActionText}>Mapa</Text>
+            </Pressable>
+            {!driver && (
+              <>
               <Pressable
                 style={styles.routeAction}
                 onPress={() => {
@@ -284,11 +259,12 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
                 {icon("trash-outline", 18, colors.red)}
                 <Text style={[styles.routeActionText, { color: colors.red }]}>Eliminar</Text>
               </Pressable>
-            </View>
-          )}
+              </>
+            )}
+          </View>
         </Card>
       ))}
-      {!driver && (
+      {selectedRoute && (
         <RouteFormModal
           visible={formVisible}
           route={editingRoute}
@@ -312,10 +288,10 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
             <View style={styles.fullscreenMapHeader}>
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={styles.fullscreenMapTitle}>
-                  {selectedRoute?.name ?? "Mapa de cobertura"}
+                  {selectedRoute.name}
                 </Text>
                 <Text style={styles.fullscreenMapSubtitle}>
-                  {selectedRoute ? `${mapPoints.length} puntos · recorrido por calles` : "Domicilios disponibles"}
+                  {`${mapPoints.length} puntos · recorrido por calles`}
                 </Text>
               </View>
               <Pressable
@@ -697,13 +673,6 @@ const styles = StyleSheet.create({
   mapPin: { position: "absolute", width: 34, height: 34, borderRadius: 17, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "white" },
   customerPin: { position: "absolute", width: 14, height: 14, borderRadius: 7, backgroundColor: colors.amber, borderWidth: 3, borderColor: "white" },
   mapNote: { position: "absolute", bottom: 12, alignSelf: "center", backgroundColor: "rgba(255,255,255,.9)", color: colors.muted, fontSize: 11, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  mapCard: { padding: 12, marginBottom: 2 },
-  mapHeaderActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 7, marginLeft: 8 },
-  mapReset: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: colors.softBlue },
-  mapResetText: { color: colors.blue, fontSize: 12, fontWeight: "800" },
-  mapExpand: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: colors.blue },
-  mapExpandText: { color: "white", fontSize: 12, fontWeight: "900" },
-  mapHelp: { color: colors.muted, fontSize: 11, lineHeight: 16, textAlign: "center", marginTop: 8 },
   fullscreenMapRoot: { flex: 1, backgroundColor: "white" },
   fullscreenMapHeader: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "white", borderBottomWidth: 1, borderBottomColor: colors.border },
   fullscreenMapTitle: { color: colors.ink, fontSize: 19, fontWeight: "900" },
