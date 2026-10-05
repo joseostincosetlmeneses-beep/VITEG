@@ -14,7 +14,7 @@ export type RouteMapPoint = {
 const accessToken = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
 if (accessToken) Mapbox.setAccessToken(accessToken);
 
-export function RouteMap({ points }: { points: RouteMapPoint[] }) {
+export function RouteMap({ points, fullScreen = false }: { points: RouteMapPoint[]; fullScreen?: boolean }) {
   const [roadCoordinates, setRoadCoordinates] = useState<[number, number][]>([]);
   const orderedPoints = useMemo(
     () => [...points].sort((a, b) => (a.sequence ?? 9999) - (b.sequence ?? 9999)),
@@ -60,6 +60,15 @@ export function RouteMap({ points }: { points: RouteMapPoint[] }) {
         [0, 0]
       )
     : [-97.9248, 19.3139] as [number, number];
+  const bounds = orderedPoints.length > 1
+    ? orderedPoints.reduce(
+        (value, point) => ({
+          ne: [Math.max(value.ne[0], point.coordinates[0]), Math.max(value.ne[1], point.coordinates[1])] as [number, number],
+          sw: [Math.min(value.sw[0], point.coordinates[0]), Math.min(value.sw[1], point.coordinates[1])] as [number, number]
+        }),
+        { ne: orderedPoints[0]!.coordinates, sw: orderedPoints[0]!.coordinates }
+      )
+    : undefined;
   const pointCollection = {
     type: "FeatureCollection",
     features: orderedPoints.map((point) => ({
@@ -76,9 +85,29 @@ export function RouteMap({ points }: { points: RouteMapPoint[] }) {
   } as const;
 
   return (
-    <View style={styles.container}>
-      <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Street} logoEnabled attributionEnabled>
-        <Mapbox.Camera centerCoordinate={center} zoomLevel={orderedPoints.length > 1 ? 11.5 : 13} animationDuration={500} />
+    <View style={[styles.container, fullScreen && styles.fullScreen]}>
+      <Mapbox.MapView
+        style={styles.map}
+        styleURL={Mapbox.StyleURL.Street}
+        logoEnabled
+        attributionEnabled
+        compassEnabled
+        rotateEnabled
+      >
+        <Mapbox.Camera
+          centerCoordinate={bounds ? undefined : center}
+          zoomLevel={bounds ? undefined : 13}
+          bounds={bounds ? {
+            ne: bounds.ne,
+            sw: bounds.sw,
+            paddingTop: fullScreen ? 90 : 46,
+            paddingRight: fullScreen ? 55 : 36,
+            paddingBottom: fullScreen ? 110 : 66,
+            paddingLeft: fullScreen ? 55 : 36
+          } : undefined}
+          maxZoomLevel={15}
+          animationDuration={500}
+        />
         {roadCoordinates.length > 1 && (
           <Mapbox.ShapeSource id="viteg-route-line" shape={line as any}>
             <Mapbox.LineLayer
@@ -107,7 +136,11 @@ export function RouteMap({ points }: { points: RouteMapPoint[] }) {
       </Mapbox.MapView>
       <View style={styles.caption}>
         <Text style={styles.captionText}>
-          {orderedPoints.length ? `${orderedPoints.length} punto${orderedPoints.length === 1 ? "" : "s"} en el mapa` : "Agrega domicilios a una ruta para trazarla"}
+          {orderedPoints.length
+            ? fullScreen
+              ? `${orderedPoints.length} punto${orderedPoints.length === 1 ? "" : "s"} · desliza y pellizca para explorar`
+              : `${orderedPoints.length} punto${orderedPoints.length === 1 ? "" : "s"} en el mapa`
+            : "Agrega domicilios a una ruta para trazarla"}
         </Text>
       </View>
     </View>
@@ -123,6 +156,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.softBlue
   },
+  fullScreen: { flex: 1, height: undefined, borderRadius: 0, borderWidth: 0 },
   map: { flex: 1 },
   caption: {
     position: "absolute",

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,6 +11,7 @@ import {
   useWindowDimensions
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 import type { DashboardSummary, SessionUser } from "@viteg/shared";
 import { api } from "./api";
 import { Button, Card, Field, Loading, SectionTitle, StatusPill } from "./components";
@@ -99,6 +99,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
   const [selectedStops, setSelectedStops] = useState<any[]>([]);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<any | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -210,14 +211,21 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
                 {selectedRoute ? "Paradas ordenadas y recorrido por calles" : "Domicilios disponibles para planear rutas"}
               </Text>
             </View>
-            {selectedRoute && (
-              <Pressable style={styles.mapReset} onPress={() => setSelectedRoute(null)}>
-                {icon("close", 18, colors.blue)}
-                <Text style={styles.mapResetText}>Ver todos</Text>
+            <View style={styles.mapHeaderActions}>
+              {selectedRoute && (
+                <Pressable style={styles.mapReset} onPress={() => setSelectedRoute(null)}>
+                  {icon("close", 18, colors.blue)}
+                  <Text style={styles.mapResetText}>Ver todos</Text>
+                </Pressable>
+              )}
+              <Pressable style={styles.mapExpand} onPress={() => setMapFullscreen(true)}>
+                {icon("expand-outline", 19, "white")}
+                <Text style={styles.mapExpandText}>Ampliar</Text>
               </Pressable>
-            )}
+            </View>
           </View>
           <RouteMap points={mapPoints} />
+          <Text style={styles.mapHelp}>Toca “Ampliar” para mover el mapa, acercar con dos dedos y revisar toda la ruta.</Text>
         </Card>
       )}
       {routes.length === 0 ? <Card><Empty text="No hay rutas disponibles." /></Card> : routes.map((route) => (
@@ -243,7 +251,13 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
           )}
           {!driver && (
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeAction} onPress={() => setSelectedRoute(route)}>
+              <Pressable
+                style={styles.routeAction}
+                onPress={() => {
+                  setSelectedRoute(route);
+                  setMapFullscreen(true);
+                }}
+              >
                 {icon("map-outline", 18, colors.blue)}
                 <Text style={styles.routeActionText}>Mapa</Text>
               </Pressable>
@@ -276,6 +290,41 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
             void load();
           }}
         />
+      )}
+      {!driver && (
+        <Modal
+          visible={mapFullscreen}
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={() => setMapFullscreen(false)}
+        >
+          <SafeAreaView style={styles.fullscreenMapRoot}>
+            <View style={styles.fullscreenMapHeader}>
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1} style={styles.fullscreenMapTitle}>
+                  {selectedRoute?.name ?? "Mapa de cobertura"}
+                </Text>
+                <Text style={styles.fullscreenMapSubtitle}>
+                  {selectedRoute ? `${mapPoints.length} puntos · recorrido por calles` : "Domicilios disponibles"}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar mapa de pantalla completa"
+                style={styles.fullscreenClose}
+                onPress={() => setMapFullscreen(false)}
+              >
+                {icon("close", 25, colors.ink)}
+              </Pressable>
+            </View>
+            <View style={styles.mapLegend}>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.green }]} /><Text style={styles.legendText}>Origen</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.amber }]} /><Text style={styles.legendText}>Paradas</Text></View>
+              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: colors.red }]} /><Text style={styles.legendText}>Destino</Text></View>
+            </View>
+            <RouteMap points={mapPoints} fullScreen />
+          </SafeAreaView>
+        </Modal>
       )}
     </ScrollView>
   );
@@ -524,8 +573,21 @@ const styles = StyleSheet.create({
   customerPin: { position: "absolute", width: 14, height: 14, borderRadius: 7, backgroundColor: colors.amber, borderWidth: 3, borderColor: "white" },
   mapNote: { position: "absolute", bottom: 12, alignSelf: "center", backgroundColor: "rgba(255,255,255,.9)", color: colors.muted, fontSize: 11, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   mapCard: { padding: 12, marginBottom: 2 },
+  mapHeaderActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 7, marginLeft: 8 },
   mapReset: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: colors.softBlue },
   mapResetText: { color: colors.blue, fontSize: 12, fontWeight: "800" },
+  mapExpand: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: colors.blue },
+  mapExpandText: { color: "white", fontSize: 12, fontWeight: "900" },
+  mapHelp: { color: colors.muted, fontSize: 11, lineHeight: 16, textAlign: "center", marginTop: 8 },
+  fullscreenMapRoot: { flex: 1, backgroundColor: "white" },
+  fullscreenMapHeader: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "white", borderBottomWidth: 1, borderBottomColor: colors.border },
+  fullscreenMapTitle: { color: colors.ink, fontSize: 19, fontWeight: "900" },
+  fullscreenMapSubtitle: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  fullscreenClose: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
+  mapLegend: { flexDirection: "row", justifyContent: "center", gap: 18, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: "white", borderBottomWidth: 1, borderBottomColor: colors.border },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: "white" },
+  legendText: { color: colors.ink, fontSize: 11, fontWeight: "700" },
   rowTop: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   routeName: { fontSize: 19, fontWeight: "900", color: colors.ink },
   routeStats: { flexDirection: "row", flexWrap: "wrap", gap: 22, paddingVertical: 18 },
