@@ -15,7 +15,6 @@
     ],
     "android": {
       "package": "mx.viteg.distribucion",
-      "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
