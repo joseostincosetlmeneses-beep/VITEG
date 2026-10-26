@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fetch as expoFetch } from "expo/fetch";
-import { File } from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import type { ApiResponse, DashboardSummary, Role, SessionUser } from "@viteg/shared";
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api";
@@ -92,15 +91,21 @@ export const api = {
   }),
   async uploadChatMedia(asset: { uri: string }) {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
-    const form = new FormData();
-    form.append("file", new File(asset.uri));
-    const response = await expoFetch(`${API_URL}/messaging/media`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: form
+    const response = await FileSystem.uploadAsync(`${API_URL}/messaging/media`, asset.uri, {
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: "file",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
     });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.message ?? "No se pudo subir el archivo");
+    let body: any = {};
+    try {
+      body = JSON.parse(response.body);
+    } catch {
+      // The status below still provides a useful error if the server returns non-JSON content.
+    }
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(body.message ?? "No se pudo subir el archivo");
+    }
     return body.data as any;
   },
   trackLocation: (value: unknown) => request<any>("/tracking/locations", { method: "POST", body: JSON.stringify(value) }),
