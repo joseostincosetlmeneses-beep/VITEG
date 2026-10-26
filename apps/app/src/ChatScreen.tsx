@@ -5,7 +5,7 @@ import {
   FlatList,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
+  type KeyboardEvent,
   Linking,
   Modal,
   Platform,
@@ -107,6 +107,18 @@ export const ChatScreen = forwardRef<
   const socketRef = useRef<Socket | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
+  const chatRootRef = useRef<View>(null);
+  const keyboardTopRef = useRef<number | null>(null);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+
+  const updateKeyboardInset = useCallback(() => {
+    requestAnimationFrame(() => {
+      chatRootRef.current?.measureInWindow((_x, y, _width, height) => {
+        const keyboardTop = keyboardTopRef.current;
+        setKeyboardInset(keyboardTop === null ? 0 : Math.max(0, Math.round(y + height - keyboardTop)));
+      });
+    });
+  }, []);
 
   useImperativeHandle(ref, () => ({
     handleBack: () => {
@@ -125,14 +137,22 @@ export const ChatScreen = forwardRef<
   }), [attachmentOpen, peopleOpen, previewImage, selected]);
 
   useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", () => onKeyboardVisibilityChange?.(true));
-    const hide = Keyboard.addListener("keyboardDidHide", () => onKeyboardVisibilityChange?.(false));
+    const show = Keyboard.addListener("keyboardDidShow", (event: KeyboardEvent) => {
+      keyboardTopRef.current = event.endCoordinates.screenY;
+      onKeyboardVisibilityChange?.(true);
+      updateKeyboardInset();
+    });
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardTopRef.current = null;
+      setKeyboardInset(0);
+      onKeyboardVisibilityChange?.(false);
+    });
     return () => {
       show.remove();
       hide.remove();
       onKeyboardVisibilityChange?.(false);
     };
-  }, [onKeyboardVisibilityChange]);
+  }, [onKeyboardVisibilityChange, updateKeyboardInset]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -280,10 +300,12 @@ export const ChatScreen = forwardRef<
     const worker = otherWorker(selected);
     const name = workerName(worker);
     return (
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-        style={styles.chatRoot}
+      <View
+        ref={chatRootRef}
+        onLayout={() => {
+          if (keyboardTopRef.current !== null) updateKeyboardInset();
+        }}
+        style={[styles.chatRoot, keyboardInset > 0 && { paddingBottom: keyboardInset }]}
       >
         <View style={styles.chatHeader}>
           <Pressable onPress={() => { setSelected(null); setMessages([]); void loadConversations(); }} style={styles.iconButton}>
@@ -377,7 +399,7 @@ export const ChatScreen = forwardRef<
             </Pressable>
           </Pressable>
         </Modal>
-      </KeyboardAvoidingView>
+      </View>
     );
   }
 

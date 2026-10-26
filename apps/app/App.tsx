@@ -339,7 +339,7 @@ function Workspace({
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (keyboardVisible) {
+      if (Keyboard.isVisible()) {
         Keyboard.dismiss();
         return true;
       }

@@ -9,17 +9,31 @@ const TOKEN_KEY = "viteg.session.token";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      cache: "no-store",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers
+      }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.message ?? "No fue posible completar la operación");
+    return body.data as T;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("El servidor tardó demasiado en responder. Verifica la red e inténtalo nuevamente.");
     }
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.message ?? "No fue posible completar la operación");
-  return body.data as T;
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export const api = {
