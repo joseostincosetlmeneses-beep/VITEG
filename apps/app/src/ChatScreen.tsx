@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -86,7 +87,12 @@ function previewText(message?: Message) {
   return message.text || "Mensaje";
 }
 
-export function ChatScreen({ user }: { user: SessionUser }) {
+export type ChatScreenHandle = { handleBack: () => boolean };
+
+export const ChatScreen = forwardRef<
+  ChatScreenHandle,
+  { user: SessionUser; onKeyboardVisibilityChange?: (visible: boolean) => void }
+>(function ChatScreen({ user, onKeyboardVisibilityChange }, ref) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selected, setSelected] = useState<Conversation | null>(null);
@@ -97,9 +103,36 @@ export function ChatScreen({ user }: { user: SessionUser }) {
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [attachmentOpen, setAttachmentOpen] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
+
+  useImperativeHandle(ref, () => ({
+    handleBack: () => {
+      if (previewImage) { setPreviewImage(null); return true; }
+      if (attachmentOpen) { setAttachmentOpen(false); return true; }
+      if (peopleOpen) { setPeopleOpen(false); return true; }
+      if (selected) {
+        Keyboard.dismiss();
+        setSelected(null);
+        setMessages([]);
+        void loadConversations();
+        return true;
+      }
+      return false;
+    }
+  }), [attachmentOpen, peopleOpen, previewImage, selected]);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => onKeyboardVisibilityChange?.(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => onKeyboardVisibilityChange?.(false));
+    return () => {
+      show.remove();
+      hide.remove();
+      onKeyboardVisibilityChange?.(false);
+    };
+  }, [onKeyboardVisibilityChange]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -233,9 +266,7 @@ export function ChatScreen({ user }: { user: SessionUser }) {
     setSending(true);
     try {
       const attachment = await api.uploadChatMedia({
-        uri: asset.uri,
-        name: asset.fileName,
-        type: asset.mimeType ?? (kind === "VIDEO" ? "video/mp4" : "image/jpeg")
+        uri: asset.uri
       }) as Attachment;
       setSending(false);
       await sendPayload({ type: kind, attachments: [attachment] });
@@ -249,7 +280,11 @@ export function ChatScreen({ user }: { user: SessionUser }) {
     const worker = otherWorker(selected);
     const name = workerName(worker);
     return (
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.chatRoot}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+        style={styles.chatRoot}
+      >
         <View style={styles.chatHeader}>
           <Pressable onPress={() => { setSelected(null); setMessages([]); void loadConversations(); }} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={23} color={colors.ink} />
@@ -287,11 +322,7 @@ export function ChatScreen({ user }: { user: SessionUser }) {
           <Pressable
             disabled={sending}
             style={styles.attachButton}
-            onPress={() => Alert.alert("Adjuntar", "¿Qué deseas enviar?", [
-              { text: "Imagen", onPress: () => void pickMedia("IMAGE") },
-              { text: "Video", onPress: () => void pickMedia("VIDEO") },
-              { text: "Cancelar", style: "cancel" }
-            ])}
+            onPress={() => { Keyboard.dismiss(); setAttachmentOpen(true); }}
           >
             <Ionicons name="add" size={28} color={colors.blue} />
           </Pressable>
@@ -316,6 +347,35 @@ export function ChatScreen({ user }: { user: SessionUser }) {
             </Pressable>
             {previewImage && <Image source={{ uri: previewImage }} resizeMode="contain" style={styles.previewImage} />}
           </View>
+        </Modal>
+
+        <Modal visible={attachmentOpen} transparent animationType="slide" onRequestClose={() => setAttachmentOpen(false)}>
+          <Pressable style={styles.sheetBackdrop} onPress={() => setAttachmentOpen(false)}>
+            <Pressable style={styles.attachmentSheet} onPress={(event) => event.stopPropagation()}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>Compartir archivo</Text>
+              <Text style={styles.sheetSubtitle}>Selecciona contenido de tu galería</Text>
+              <View style={styles.attachmentOptions}>
+                <Pressable style={styles.attachmentOption} onPress={() => { setAttachmentOpen(false); void pickMedia("IMAGE"); }}>
+                  <View style={[styles.attachmentIcon, { backgroundColor: "#E8F8F3" }]}>
+                    <Ionicons name="image-outline" size={30} color={colors.green} />
+                  </View>
+                  <Text style={styles.attachmentTitle}>Imagen</Text>
+                  <Text style={styles.attachmentDescription}>Fotos y capturas</Text>
+                </Pressable>
+                <Pressable style={styles.attachmentOption} onPress={() => { setAttachmentOpen(false); void pickMedia("VIDEO"); }}>
+                  <View style={[styles.attachmentIcon, { backgroundColor: "#F3E8FF" }]}>
+                    <Ionicons name="videocam-outline" size={30} color="#7C3AED" />
+                  </View>
+                  <Text style={styles.attachmentTitle}>Video</Text>
+                  <Text style={styles.attachmentDescription}>Hasta 50 MB</Text>
+                </Pressable>
+              </View>
+              <Pressable style={styles.cancelAttachment} onPress={() => setAttachmentOpen(false)}>
+                <Text style={styles.cancelAttachmentText}>Cancelar</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
         </Modal>
       </KeyboardAvoidingView>
     );
@@ -399,7 +459,7 @@ export function ChatScreen({ user }: { user: SessionUser }) {
       </Modal>
     </View>
   );
-}
+});
 
 function Avatar({ name, photoUrl, size }: { name: string; photoUrl?: string; size: number }) {
   if (photoUrl) return <Image source={{ uri: photoUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
@@ -500,5 +560,17 @@ const styles = StyleSheet.create({
   noResults: { color: colors.muted, textAlign: "center", marginTop: 40 },
   previewBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.94)", alignItems: "center", justifyContent: "center" },
   previewClose: { position: "absolute", zIndex: 2, right: 18, top: 40, width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" },
-  previewImage: { width: "100%", height: "82%" }
+  previewImage: { width: "100%", height: "82%" },
+  sheetBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.45)" },
+  attachmentSheet: { backgroundColor: "white", paddingHorizontal: 20, paddingTop: 10, paddingBottom: Platform.OS === "android" ? 24 : 34, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
+  sheetHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: colors.border, alignSelf: "center", marginBottom: 18 },
+  sheetTitle: { color: colors.ink, fontSize: 21, fontWeight: "900" },
+  sheetSubtitle: { color: colors.muted, fontSize: 13, marginTop: 4, marginBottom: 20 },
+  attachmentOptions: { flexDirection: "row", gap: 12 },
+  attachmentOption: { flex: 1, minHeight: 142, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 16, backgroundColor: colors.background },
+  attachmentIcon: { width: 52, height: 52, borderRadius: 17, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  attachmentTitle: { color: colors.ink, fontSize: 15, fontWeight: "900" },
+  attachmentDescription: { color: colors.muted, fontSize: 11, marginTop: 4 },
+  cancelAttachment: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 12 },
+  cancelAttachmentText: { color: colors.blue, fontSize: 14, fontWeight: "800" }
 });

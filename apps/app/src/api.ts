@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { fetch as expoFetch } from "expo/fetch";
+import { File } from "expo-file-system";
 import type { ApiResponse, DashboardSummary, Role, SessionUser } from "@viteg/shared";
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api";
@@ -74,15 +76,11 @@ export const api = {
     method: "POST",
     body: JSON.stringify(value)
   }),
-  async uploadChatMedia(asset: { uri: string; name?: string | null; type?: string | null }) {
+  async uploadChatMedia(asset: { uri: string }) {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
     const form = new FormData();
-    form.append("file", {
-      uri: asset.uri,
-      name: asset.name || `viteg-${Date.now()}`,
-      type: asset.type || "application/octet-stream"
-    } as any);
-    const response = await fetch(`${API_URL}/messaging/media`, {
+    form.append("file", new File(asset.uri));
+    const response = await expoFetch(`${API_URL}/messaging/media`, {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       body: form

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,6 +14,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  ToastAndroid,
   View
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -23,7 +26,7 @@ import { AdminDashboard, DriverHome, ResourceScreen, RoutesScreen } from "./src/
 import { ClientsScreen, CustomerRequestScreen, RequestsScreen } from "./src/CustomerScreens";
 import { DriverLocationReporter } from "./src/DriverLocationReporter";
 import { AgendaScreen } from "./src/AgendaScreen";
-import { ChatScreen } from "./src/ChatScreen";
+import { ChatScreen, type ChatScreenHandle } from "./src/ChatScreen";
 import { colors, radius } from "./src/theme";
 
 const logo = require("./assets/viteg-logo.png");
@@ -326,10 +329,33 @@ function Workspace({
   const tabs = user.role === "ADMIN" ? adminTabs : driverTabs;
   const moreItems = user.role === "ADMIN" ? adminMore : driverMore;
   const [current, setCurrent] = useState("Inicio");
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const chatRef = useRef<ChatScreenHandle>(null);
+  const lastBackPress = useRef(0);
   const activeTab = useMemo(
     () => (tabs.some((item) => item.label === current) ? current : "Más"),
     [current, tabs]
   );
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (keyboardVisible) {
+        Keyboard.dismiss();
+        return true;
+      }
+      if (current === "Chat" && chatRef.current?.handleBack()) return true;
+      if (current !== "Inicio") {
+        setCurrent("Inicio");
+        return true;
+      }
+      const now = Date.now();
+      if (now - lastBackPress.current < 2000) return false;
+      lastBackPress.current = now;
+      ToastAndroid.show("Desliza otra vez para salir", ToastAndroid.SHORT);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [current, keyboardVisible]);
 
   const content = current === "Inicio"
     ? user.role === "ADMIN"
@@ -342,7 +368,7 @@ function Workspace({
         : current === "Agenda" && user.role === "ADMIN"
           ? <AgendaScreen />
         : current === "Chat"
-          ? <ChatScreen user={user} />
+          ? <ChatScreen ref={chatRef} user={user} onKeyboardVisibilityChange={setKeyboardVisible} />
         : current === "Solicitudes" && user.role === "ADMIN"
           ? <RequestsScreen />
           : current === "Nuevo cliente" && user.role === "DRIVER"
@@ -366,7 +392,7 @@ function Workspace({
         </Pressable>
       </View>
       <View style={styles.screen}>{content}</View>
-      <View style={styles.bottomBar}>
+      {!(current === "Chat" && keyboardVisible) && <View style={styles.bottomBar}>
         {tabs.map((item) => {
           const active = activeTab === item.label;
           const activeIcon = item.icon.replace("-outline", "") as keyof typeof Ionicons.glyphMap;
@@ -389,7 +415,7 @@ function Workspace({
             </Pressable>
           );
         })}
-      </View>
+      </View>}
     </SafeAreaView>
   );
 }

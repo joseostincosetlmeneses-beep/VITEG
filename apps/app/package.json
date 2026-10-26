@@ -17,6 +17,7 @@
     "@viteg/shared": "*",
     "expo": "^57.0.26",
     "expo-dev-client": "~57.0.19",
+    "expo-file-system": "~57.0.7",
     "expo-image-picker": "~57.0.20",
     "expo-location": "~57.0.20",
     "expo-status-bar": "^57.0.1",
