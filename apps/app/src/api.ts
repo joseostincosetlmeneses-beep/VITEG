@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ApiResponse, DashboardSummary, Role, SessionUser } from "@viteg/shared";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api";
+export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000/api";
+export const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL ?? API_URL.replace(/\/api$/, "");
 const TOKEN_KEY = "viteg.session.token";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -20,6 +21,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  sessionToken: () => AsyncStorage.getItem(TOKEN_KEY),
   async login(email: string, password: string, role: Role): Promise<SessionUser> {
     const result = await request<{ token: string; user: SessionUser }>("/auth/login", {
       method: "POST",
@@ -61,6 +63,34 @@ export const api = {
   drivers: () => request<any[]>("/users?role=DRIVER"),
   addresses: () => request<any[]>("/addresses"),
   latestDriverLocations: () => request<any[]>("/tracking/locations/latest"),
+  chatWorkers: () => request<any[]>("/messaging/workers"),
+  conversations: () => request<any[]>("/messaging/conversations"),
+  conversationMessages: (conversationId: string) => request<any[]>(`/messaging/conversations/${conversationId}/messages`),
+  openConversation: (participantId: string) => request<any>("/messaging/conversations", {
+    method: "POST",
+    body: JSON.stringify({ participantId })
+  }),
+  sendMessage: (conversationId: string, value: unknown) => request<any>(`/messaging/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: JSON.stringify(value)
+  }),
+  async uploadChatMedia(asset: { uri: string; name?: string | null; type?: string | null }) {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const form = new FormData();
+    form.append("file", {
+      uri: asset.uri,
+      name: asset.name || `viteg-${Date.now()}`,
+      type: asset.type || "application/octet-stream"
+    } as any);
+    const response = await fetch(`${API_URL}/messaging/media`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: form
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.message ?? "No se pudo subir el archivo");
+    return body.data as any;
+  },
   trackLocation: (value: unknown) => request<any>("/tracking/locations", { method: "POST", body: JSON.stringify(value) }),
   updateRouteStatus: (routeId: string, status: string) =>
     request<any>(`/distribution/routes/${routeId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),

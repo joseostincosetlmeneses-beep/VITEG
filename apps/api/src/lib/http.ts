@@ -40,6 +40,10 @@ export const errorHandler: ErrorRequestHandler = (error, _request, response, _ne
     response.status(409).json({ message: "El registro ya existe", details: error.keyValue });
     return;
   }
+  if (error?.code === "LIMIT_FILE_SIZE") {
+    response.status(413).json({ message: "El archivo supera el límite de 50 MB" });
+    return;
+  }
   console.error(error);
   response.status(500).json({ message: "Error interno del servidor" });
 };

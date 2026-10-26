@@ -17,7 +17,9 @@
       "package": "mx.viteg.distribucion",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/viteg-app-icon.png",
@@ -30,6 +32,13 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "VITEG usa tu ubicación para mostrar y actualizar las rutas de reparto."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "VITEG necesita acceso a tus fotos y videos para compartirlos con otros trabajadores en el chat.",
+          "cameraPermission": "VITEG necesita acceso a la cámara para compartir contenido en el chat."
         }
       ]
     ],

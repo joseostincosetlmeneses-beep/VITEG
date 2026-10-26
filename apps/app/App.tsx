@@ -23,6 +23,7 @@ import { AdminDashboard, DriverHome, ResourceScreen, RoutesScreen } from "./src/
 import { ClientsScreen, CustomerRequestScreen, RequestsScreen } from "./src/CustomerScreens";
 import { DriverLocationReporter } from "./src/DriverLocationReporter";
 import { AgendaScreen } from "./src/AgendaScreen";
+import { ChatScreen } from "./src/ChatScreen";
 import { colors, radius } from "./src/theme";
 
 const logo = require("./assets/viteg-logo.png");
@@ -340,6 +341,8 @@ function Workspace({
         ? <ClientsScreen />
         : current === "Agenda" && user.role === "ADMIN"
           ? <AgendaScreen />
+        : current === "Chat"
+          ? <ChatScreen user={user} />
         : current === "Solicitudes" && user.role === "ADMIN"
           ? <RequestsScreen />
           : current === "Nuevo cliente" && user.role === "DRIVER"

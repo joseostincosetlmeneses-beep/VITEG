@@ -38,7 +38,10 @@ const attachmentSchema = new Schema(
   {
     url: { type: String, required: true },
     storageKey: String,
-    kind: { type: String, enum: ["IMAGE", "DOCUMENT"], default: "IMAGE" }
+    kind: { type: String, enum: ["IMAGE", "VIDEO", "DOCUMENT"], default: "IMAGE" },
+    name: String,
+    mimeType: String,
+    size: Number
   },
   { _id: false }
 );
@@ -276,7 +279,7 @@ const messageSchema = new Schema(
     tenantId: { type: String, required: true, default: "default", index: true },
     conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", required: true, index: true },
     senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    type: { type: String, enum: ["TEXT", "IMAGE", "LOCATION", "SYSTEM"], default: "TEXT" },
+    type: { type: String, enum: ["TEXT", "IMAGE", "VIDEO", "LOCATION", "SYSTEM"], default: "TEXT" },
     text: String,
     attachments: [attachmentSchema],
     location: pointFields,

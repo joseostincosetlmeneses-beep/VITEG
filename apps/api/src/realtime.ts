@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from "node:http";
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
+import { z } from "zod";
 import type { SessionUser } from "@viteg/shared";
 import { env } from "./config.js";
 import { Conversation, DriverLocation, Message, Route } from "./models/index.js";
@@ -32,21 +33,36 @@ export function createRealtimeServer(httpServer: HttpServer): Server {
 
     socket.on("message:send", async (payload, acknowledge) => {
       try {
-        const conversation = await Conversation.findOne({ _id: payload.conversationId, tenantId: "default", participants: user.id });
+        const input = z.object({
+          conversationId: z.string().min(1),
+          type: z.enum(["TEXT", "IMAGE", "VIDEO"]).default("TEXT"),
+          text: z.string().trim().max(2000).optional(),
+          attachments: z.array(z.object({
+            url: z.string().min(1),
+            storageKey: z.string().optional(),
+            kind: z.enum(["IMAGE", "VIDEO"]),
+            name: z.string().optional(),
+            mimeType: z.string().optional(),
+            size: z.number().nonnegative().optional()
+          })).max(1).default([])
+        }).refine((value) => Boolean(value.text) || value.attachments.length > 0).parse(payload);
+        const conversation = await Conversation.findOne({ _id: input.conversationId, tenantId: "default", participants: user.id });
         if (!conversation) throw new Error("FORBIDDEN");
         const message = await Message.create({
           tenantId: "default",
           conversationId: conversation._id,
           senderId: user.id,
-          type: payload.type ?? "TEXT",
-          text: payload.text,
-          attachments: payload.attachments ?? [],
-          location: payload.location,
+          type: input.type,
+          text: input.text,
+          attachments: input.attachments,
           readBy: [user.id]
         });
         conversation.lastMessageAt = new Date();
         await conversation.save();
-        io.to(`conversation:${conversation.id}`).emit("message:new", message);
+        await message.populate("senderId", "firstName lastName role photoUrl");
+        for (const participantId of conversation.participants) {
+          io.to(`user:${String(participantId)}`).emit("message:new", message);
+        }
         acknowledge?.({ ok: true, data: message });
       } catch (error) {
         acknowledge?.({ ok: false, error: error instanceof Error ? error.message : "ERROR" });
