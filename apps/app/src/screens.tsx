@@ -780,13 +780,13 @@ export const adminNavigation = [
   { section: "Operación", items: [["Rutas", "map-outline"], ["Agenda", "calendar-outline"], ["Entregas", "checkmark-done-outline"]] },
   { section: "Personas", items: [["Repartidores", "people-outline"], ["Clientes", "business-outline"]] },
   { section: "Logística", items: [["Domicilios", "location-outline"], ["Zonas", "grid-outline"], ["Productos", "cube-outline"]] },
-  { section: "Comunicación", items: [["Solicitudes", "document-text-outline"], ["Chat", "chatbubbles-outline"], ["Notificaciones", "notifications-outline"]] },
+  { section: "Comunicación", items: [["Solicitudes", "document-text-outline"], ["Chat", "chatbubbles-outline"]] },
   { section: "Análisis", items: [["Reportes", "bar-chart-outline"], ["Configuración", "settings-outline"]] }
 ] as const;
 
 export const driverNavigation = [
   { section: "Ruta", items: [["Inicio", "home-outline"], ["Mi Ruta", "map-outline"], ["Mapa", "navigate-outline"], ["Entregas", "checkmark-done-outline"]] },
-  { section: "Cuenta", items: [["Nuevo cliente", "add-circle-outline"], ["Chat", "chatbubbles-outline"], ["Notificaciones", "notifications-outline"], ["Perfil", "person-circle-outline"]] }
+  { section: "Cuenta", items: [["Nuevo cliente", "add-circle-outline"], ["Chat", "chatbubbles-outline"], ["Perfil", "person-circle-outline"]] }
 ] as const;
 
 const styles = StyleSheet.create({

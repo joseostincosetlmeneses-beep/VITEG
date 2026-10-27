@@ -36,6 +36,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  health: async () => {
+    const response = await fetch(API_URL.replace(/\/api$/, "/health"), { cache: "no-store" });
+    if (!response.ok) throw new Error("El servidor no respondió correctamente");
+    return response.json() as Promise<{ status: string; service: string }>;
+  },
   sessionToken: () => AsyncStorage.getItem(TOKEN_KEY),
   async login(email: string, password: string, role: Role): Promise<SessionUser> {
     const result = await request<{ token: string; user: SessionUser }>("/auth/login", {

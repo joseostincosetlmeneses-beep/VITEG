@@ -27,6 +27,7 @@ import { ClientsScreen, CustomerRequestScreen, RequestsScreen } from "./src/Cust
 import { DriverLocationReporter } from "./src/DriverLocationReporter";
 import { AgendaScreen } from "./src/AgendaScreen";
 import { ChatScreen, type ChatScreenHandle } from "./src/ChatScreen";
+import { MonitorScreen, NotificationsScreen, ReportsScreen, SettingsScreen } from "./src/UtilityScreens";
 import { colors, radius } from "./src/theme";
 
 const logo = require("./assets/viteg-logo.png");
@@ -60,7 +61,6 @@ const adminMore: NavItem[] = [
   { label: "Zonas", icon: "grid-outline" },
   { label: "Productos", icon: "cube-outline" },
   { label: "Solicitudes", icon: "document-text-outline" },
-  { label: "Notificaciones", icon: "notifications-outline" },
   { label: "Reportes", icon: "bar-chart-outline" },
   { label: "Configuración", icon: "settings-outline" }
 ];
@@ -68,7 +68,6 @@ const adminMore: NavItem[] = [
 const driverMore: NavItem[] = [
   { label: "Mapa", icon: "map-outline" },
   { label: "Nuevo cliente", icon: "add-circle-outline" },
-  { label: "Notificaciones", icon: "notifications-outline" },
   { label: "Perfil", icon: "person-circle-outline" }
 ];
 
@@ -361,7 +360,7 @@ function Workspace({
     ? user.role === "ADMIN"
       ? <AdminDashboard />
       : <DriverHome user={user} onNavigate={setCurrent} />
-    : current === "Rutas" || current === "Mi Ruta"
+      : current === "Rutas" || current === "Mi Ruta" || current === "Mapa"
       ? <RoutesScreen driver={user.role === "DRIVER"} />
       : current === "Clientes" && user.role === "ADMIN"
         ? <ClientsScreen />
@@ -369,6 +368,14 @@ function Workspace({
           ? <AgendaScreen />
         : current === "Chat"
           ? <ChatScreen ref={chatRef} user={user} onKeyboardVisibilityChange={setKeyboardVisible} />
+        : current === "Notificaciones"
+          ? <NotificationsScreen />
+        : current === "Monitor" && user.role === "ADMIN"
+          ? <MonitorScreen />
+        : current === "Reportes" && user.role === "ADMIN"
+          ? <ReportsScreen />
+        : current === "Configuración" || current === "Perfil"
+          ? <SettingsScreen user={user} onLogout={onLogout} profile={current === "Perfil"} />
         : current === "Solicitudes" && user.role === "ADMIN"
           ? <RequestsScreen />
           : current === "Nuevo cliente" && user.role === "DRIVER"
