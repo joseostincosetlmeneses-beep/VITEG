@@ -28,7 +28,12 @@ const createRouteSchema = z.object({
   })).max(23).default([]),
   vehicleLabel: z.string().optional(),
   startTime: z.string().optional(),
-  estimatedReturnTime: z.string().optional()
+  estimatedReturnTime: z.string().optional(),
+  recurrence: z.object({
+    enabled: z.boolean().default(false),
+    weekdays: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+    endsAt: z.coerce.date().nullable().optional()
+  }).optional()
 });
 
 const updateRouteSchema = createRouteSchema.partial();
@@ -61,6 +66,19 @@ function scopedRouteQuery(user: Express.Request["user"]) {
   return user?.role === "DRIVER" ? { tenantId: "default", driverId: user.id } : { tenantId: "default" };
 }
 
+export function nextRecurringDate(current: Date, weekdays: number[], endsAt?: Date | null) {
+  if (!weekdays.length) return null;
+  const next = new Date(current);
+  for (let offset = 1; offset <= 14; offset += 1) {
+    next.setDate(next.getDate() + 1);
+    if (weekdays.includes(next.getDay())) {
+      if (endsAt && next > endsAt) return null;
+      return new Date(next);
+    }
+  }
+  return null;
+}
+
 export const distributionRouter = Router();
 distributionRouter.use(requireAuth);
 
@@ -89,6 +107,10 @@ distributionRouter.post(
       status: input.driverId ? "ASSIGNED" : "DRAFT",
       createdBy: request.user!.id
     });
+    if (route.recurrence?.enabled) {
+      route.recurrence.seriesId = route._id;
+      await route.save();
+    }
     if (input.driverId) {
       await Notification.create({
         tenantId: "default",
@@ -131,6 +153,10 @@ distributionRouter.patch(
       route.status = input.driverId ? "ASSIGNED" : "DRAFT";
     }
     await route.save();
+    if (route.recurrence?.enabled && !route.recurrence.seriesId) {
+      route.recurrence.seriesId = route._id;
+      await route.save();
+    }
 
     if (input.driverId && input.driverId !== previousDriverId) {
       await Notification.create({
@@ -225,6 +251,41 @@ distributionRouter.patch(
     if (status === "IN_PROGRESS" && !route.startedAt) route.startedAt = new Date();
     if (status === "COMPLETED") route.completedAt = new Date();
     await route.save();
+    if (status === "COMPLETED" && route.recurrence?.enabled) {
+      const nextDate = nextRecurringDate(
+        new Date(route.date),
+        Array.from(route.recurrence.weekdays ?? []),
+        route.recurrence.endsAt ? new Date(route.recurrence.endsAt) : null
+      );
+      if (nextDate) {
+        const seriesId = route.recurrence.seriesId ?? route._id;
+        const existing = await Route.findOne({ tenantId: "default", "recurrence.seriesId": seriesId, date: nextDate });
+        if (!existing) {
+          const clone = route.toObject();
+          delete clone._id;
+          delete clone.createdAt;
+          delete clone.updatedAt;
+          delete clone.startedAt;
+          delete clone.completedAt;
+          clone.date = nextDate;
+          clone.status = clone.driverId ? "ASSIGNED" : "DRAFT";
+          clone.completedStopCount = 0;
+          clone.recurrence = { ...clone.recurrence, seriesId };
+          const nextRoute = await Route.create(clone);
+          if (clone.driverId) {
+            await Notification.create({
+              tenantId: "default", userId: clone.driverId, type: "ROUTE_ASSIGNED",
+              title: "Siguiente ruta recurrente", body: clone.name, entityType: "Route", entityId: nextRoute._id
+            });
+          }
+          await recordActivity({
+            actor: request.user!, action: "CREATE", entityType: "Route", entityId: nextRoute._id,
+            entityLabel: clone.name, targetUserId: clone.driverId,
+            summary: `generó automáticamente la siguiente jornada de la ruta fija “${clone.name}”`
+          });
+        }
+      }
+    }
     await recordActivity({
       actor: request.user!, action: "STATUS", entityType: "Route", entityId: route._id,
       entityLabel: route.name, summary: `cambió la ruta “${route.name}” al estado ${status.replaceAll("_", " ").toLowerCase()}`

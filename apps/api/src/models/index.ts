@@ -144,6 +144,12 @@ const routeSchema = new Schema(
     vehicleLabel: String,
     startTime: String,
     estimatedReturnTime: String,
+    recurrence: {
+      enabled: { type: Boolean, default: false },
+      weekdays: [{ type: Number, min: 0, max: 6 }],
+      endsAt: Date,
+      seriesId: { type: Schema.Types.ObjectId, ref: "Route", index: true }
+    },
     status: {
       type: String,
       enum: ["DRAFT", "SCHEDULED", "ASSIGNED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"],

@@ -5,7 +5,17 @@ import { api } from "./api";
 import { Button, Card, Field, Loading, SectionTitle, StatusPill } from "./components";
 import { colors, radius } from "./theme";
 
-type AgendaFilter = "UPCOMING" | "HISTORY" | "ALL";
+type AgendaFilter = "WEEKLY" | "UPCOMING" | "HISTORY";
+
+const weekDays = [
+  { value: 1, short: "Lun", label: "Lunes" },
+  { value: 2, short: "Mar", label: "Martes" },
+  { value: 3, short: "Mié", label: "Miércoles" },
+  { value: 4, short: "Jue", label: "Jueves" },
+  { value: 5, short: "Vie", label: "Viernes" },
+  { value: 6, short: "Sáb", label: "Sábado" },
+  { value: 0, short: "Dom", label: "Domingo" }
+] as const;
 
 function dateKey(value: string | Date) {
   return new Date(value).toISOString().slice(0, 10);
@@ -20,7 +30,8 @@ function startOfToday() {
 export function AgendaScreen() {
   const [routes, setRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<AgendaFilter>("UPCOMING");
+  const [filter, setFilter] = useState<AgendaFilter>("WEEKLY");
+  const [selectedWeekday, setSelectedWeekday] = useState(() => new Date().getDay());
   const [reusing, setReusing] = useState<any | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,7 +45,7 @@ export function AgendaScreen() {
     const today = startOfToday();
     return routes
       .filter((route) => {
-        if (filter === "ALL") return true;
+        if (filter === "WEEKLY") return false;
         const routeDate = new Date(route.date);
         const terminal = ["COMPLETED", "CANCELLED"].includes(route.status);
         return filter === "HISTORY" ? terminal || routeDate < today : !terminal && routeDate >= today;
@@ -51,17 +62,74 @@ export function AgendaScreen() {
     });
     return [...next.entries()];
   }, [filtered]);
+  const recurringSeries = useMemo(() => {
+    const bySeries = new Map<string, any>();
+    routes.filter((route) => route.recurrence?.enabled).forEach((route) => {
+      const key = String(route.recurrence?.seriesId ?? route._id);
+      const current = bySeries.get(key);
+      if (!current) {
+        bySeries.set(key, route);
+        return;
+      }
+      const routeTerminal = ["COMPLETED", "CANCELLED"].includes(route.status);
+      const currentTerminal = ["COMPLETED", "CANCELLED"].includes(current.status);
+      if ((currentTerminal && !routeTerminal) || new Date(route.date) > new Date(current.date)) bySeries.set(key, route);
+    });
+    return [...bySeries.values()];
+  }, [routes]);
+  const weeklyRoutes = useMemo(() => {
+    return recurringSeries
+      .filter((route) => route.recurrence.weekdays?.includes(selectedWeekday))
+      .sort((a, b) => String(a.startTime ?? "99:99").localeCompare(String(b.startTime ?? "99:99")));
+  }, [recurringSeries, selectedWeekday]);
 
   if (loading && routes.length === 0) return <Loading />;
   return (
     <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />} contentContainerStyle={styles.page}>
-      <SectionTitle title="Agenda" subtitle="Horario de rutas programadas e historial reutilizable" />
+      <SectionTitle title="Agenda" subtitle="Horario semanal de rutas fijas y jornadas programadas" />
       <View style={styles.filters}>
+        <FilterButton active={filter === "WEEKLY"} label="Horario" onPress={() => setFilter("WEEKLY")} />
         <FilterButton active={filter === "UPCOMING"} label="Próximas" onPress={() => setFilter("UPCOMING")} />
         <FilterButton active={filter === "HISTORY"} label="Historial" onPress={() => setFilter("HISTORY")} />
-        <FilterButton active={filter === "ALL"} label="Todas" onPress={() => setFilter("ALL")} />
       </View>
-      {groups.length === 0 ? (
+      {filter === "WEEKLY" ? (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekStrip}>
+            {weekDays.map((day) => {
+              const active = selectedWeekday === day.value;
+              const count = recurringSeries.filter((route) => route.recurrence.weekdays?.includes(day.value)).length;
+              return (
+                <Pressable key={day.value} onPress={() => setSelectedWeekday(day.value)} style={[styles.weekDay, active && styles.weekDayActive]}>
+                  <Text style={[styles.weekDayShort, active && styles.weekDayTextActive]}>{day.short}</Text>
+                  <Text style={[styles.weekDayCount, active && styles.weekDayTextActive]}>{count}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.weekHeading}>
+            <View><Text style={styles.weekTitle}>{weekDays.find((day) => day.value === selectedWeekday)?.label}</Text><Text style={styles.weekSubtitle}>{weeklyRoutes.length} ruta{weeklyRoutes.length === 1 ? "" : "s"} fija{weeklyRoutes.length === 1 ? "" : "s"}</Text></View>
+            <View style={styles.fixedBadge}><Ionicons name="repeat" size={14} color={colors.blue} /><Text style={styles.fixedBadgeText}>SEMANAL</Text></View>
+          </View>
+          {weeklyRoutes.length === 0 ? (
+            <Card><View style={styles.empty}><Ionicons name="calendar-outline" size={38} color={colors.border} /><Text style={styles.emptyText}>No hay rutas fijas para este día.</Text><Text style={styles.emptyHint}>En Rutas, crea o edita una ruta y activa “Ruta fija semanal”.</Text></View></Card>
+          ) : (
+            <Card style={styles.timetableCard}>
+              {weeklyRoutes.map((route, index) => (
+                <View key={route._id} style={[styles.classRow, index < weeklyRoutes.length - 1 && styles.routeRowBorder]}>
+                  <View style={styles.classTime}><Text style={styles.classTimeText}>{route.startTime ?? "--:--"}</Text><Text style={styles.classEndText}>{route.estimatedReturnTime ?? "Salida"}</Text></View>
+                  <View style={styles.classAccent} />
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.routeHeading}><Text style={styles.routeName}>{route.name}</Text><StatusPill value={route.status} /></View>
+                    <Text style={styles.meta}>{route.driverId ? `${route.driverId.firstName} ${route.driverId.lastName}` : "Sin repartidor"} · {route.waypoints?.length ?? 0} paradas</Text>
+                    <Text style={styles.meta}>{route.vehicleLabel ?? "Sin unidad"} · Próxima jornada {new Date(route.date).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}</Text>
+                    <View style={styles.repeatDays}>{route.recurrence.weekdays.map((value: number) => <Text key={value} style={styles.repeatDay}>{weekDays.find((day) => day.value === value)?.short}</Text>)}</View>
+                  </View>
+                </View>
+              ))}
+            </Card>
+          )}
+        </>
+      ) : groups.length === 0 ? (
         <Card><View style={styles.empty}><Ionicons name="calendar-outline" size={38} color={colors.border} /><Text style={styles.emptyText}>No hay rutas en esta sección.</Text></View></Card>
       ) : groups.map(([key, dayRoutes]) => (
         <View key={key} style={styles.daySection}>
@@ -116,6 +184,7 @@ function ReuseRouteModal({ route, onClose, onCreated }: { route: any | null; onC
         name: route.name,
         date: `${date}T12:00:00`,
         startTime: time,
+        estimatedReturnTime: route.estimatedReturnTime,
         vehicleLabel: route.vehicleLabel,
         driverId: typeof route.driverId === "string" ? route.driverId : route.driverId?._id ?? null,
         origin: route.origin,
@@ -157,6 +226,25 @@ const styles = StyleSheet.create({
   filterActive: { backgroundColor: colors.blue, borderColor: colors.blue },
   filterText: { color: colors.muted, fontSize: 11, fontWeight: "900" },
   filterTextActive: { color: "white" },
+  weekStrip: { gap: 8, paddingVertical: 2 },
+  weekDay: { width: 58, minHeight: 66, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: "white", alignItems: "center", justifyContent: "center", gap: 5 },
+  weekDayActive: { backgroundColor: colors.blue, borderColor: colors.blue },
+  weekDayShort: { color: colors.ink, fontSize: 11, fontWeight: "900" },
+  weekDayCount: { minWidth: 23, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 999, overflow: "hidden", textAlign: "center", color: colors.blue, backgroundColor: colors.softBlue, fontSize: 9, fontWeight: "900" },
+  weekDayTextActive: { color: "white", backgroundColor: "rgba(255,255,255,0.18)" },
+  weekHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingTop: 4 },
+  weekTitle: { color: colors.ink, fontSize: 20, fontWeight: "900" },
+  weekSubtitle: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  fixedBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.softBlue },
+  fixedBadgeText: { color: colors.blue, fontSize: 9, fontWeight: "900" },
+  timetableCard: { paddingVertical: 4 },
+  classRow: { minHeight: 112, flexDirection: "row", gap: 11, paddingVertical: 15 },
+  classTime: { width: 48, alignItems: "center" },
+  classTimeText: { color: colors.blue, fontSize: 13, fontWeight: "900" },
+  classEndText: { color: colors.muted, fontSize: 8, marginTop: 5 },
+  classAccent: { width: 4, alignSelf: "stretch", borderRadius: 3, backgroundColor: colors.blue },
+  repeatDays: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 8 },
+  repeatDay: { color: colors.blue, backgroundColor: colors.softBlue, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, overflow: "hidden", fontSize: 8, fontWeight: "900" },
   daySection: { gap: 9 },
   dayHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   dayBadge: { width: 48, height: 52, borderRadius: 13, backgroundColor: colors.softBlue, alignItems: "center", justifyContent: "center" },
@@ -178,6 +266,7 @@ const styles = StyleSheet.create({
   reuseText: { color: colors.blue, fontSize: 10, fontWeight: "900" },
   empty: { minHeight: 180, alignItems: "center", justifyContent: "center", gap: 9 },
   emptyText: { color: colors.muted, fontSize: 13 },
+  emptyHint: { maxWidth: 260, color: colors.muted, fontSize: 10, lineHeight: 15, textAlign: "center" },
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(16,42,67,0.48)" },
   modalCard: { backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" },
   modalHeader: { padding: 18, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border },

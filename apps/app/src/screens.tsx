@@ -26,6 +26,16 @@ const icon = (name: keyof typeof Ionicons.glyphMap, size = 20, color: string = c
   <Ionicons name={name} size={size} color={color} />
 );
 
+const weekDays = [
+  { value: 1, short: "L", label: "Lunes" },
+  { value: 2, short: "M", label: "Martes" },
+  { value: 3, short: "X", label: "Miércoles" },
+  { value: 4, short: "J", label: "Jueves" },
+  { value: 5, short: "V", label: "Viernes" },
+  { value: 6, short: "S", label: "Sábado" },
+  { value: 0, short: "D", label: "Domingo" }
+] as const;
+
 function Metric({ label, value, tone, glyph }: { label: string; value: string | number; tone: string; glyph: keyof typeof Ionicons.glyphMap }) {
   return (
     <Card style={styles.metric}>
@@ -221,6 +231,7 @@ export function RoutesScreen({ driver = false }: { driver?: boolean }) {
         <Card key={route._id} style={[styles.routeCard, selectedRoute?._id === route._id ? styles.routeCardSelected : {}]}>
           <View style={styles.rowTop}>
             <View style={{ flex: 1 }}><Text style={styles.routeName}>{route.name}</Text><Text style={styles.rowMeta}>{new Date(route.date).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}</Text></View>
+            {route.recurrence?.enabled && <View style={styles.recurringPill}>{icon("repeat", 13, colors.blue)}<Text style={styles.recurringPillText}>FIJA</Text></View>}
             <StatusPill value={route.status} />
           </View>
           {(route.origin || route.destination) && (
@@ -355,8 +366,11 @@ function RouteFormModal({
   const [name, setName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("08:00");
+  const [estimatedReturnTime, setEstimatedReturnTime] = useState("");
   const [vehicleLabel, setVehicleLabel] = useState("");
   const [driverId, setDriverId] = useState("");
+  const [recurring, setRecurring] = useState(false);
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
   const [origin, setOrigin] = useState<MapboxPlace | null>(null);
   const [destination, setDestination] = useState<MapboxPlace | null>(null);
   const [waypoints, setWaypoints] = useState<MapboxPlace[]>([]);
@@ -370,8 +384,11 @@ function RouteFormModal({
     setName(route?.name ?? "");
     setDate(route?.date ? new Date(route.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
     setStartTime(route?.startTime ?? "08:00");
+    setEstimatedReturnTime(route?.estimatedReturnTime ?? "");
     setVehicleLabel(route?.vehicleLabel ?? "");
     setDriverId(typeof route?.driverId === "string" ? route.driverId : route?.driverId?._id ?? "");
+    setRecurring(Boolean(route?.recurrence?.enabled));
+    setRecurrenceDays(Array.isArray(route?.recurrence?.weekdays) ? route.recurrence.weekdays : []);
     setOrigin(route?.origin ?? null);
     setDestination(route?.destination ?? null);
     setWaypoints(Array.isArray(route?.waypoints) ? route.waypoints.map((point: any) => ({
@@ -403,14 +420,20 @@ function RouteFormModal({
       Alert.alert("Ruta", "Selecciona el punto de salida y el punto final en Mapbox");
       return;
     }
+    if (recurring && recurrenceDays.length === 0) {
+      Alert.alert("Ruta fija", "Selecciona al menos un día de la semana");
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         name: name.trim(),
         date: `${date}T12:00:00`,
         startTime: startTime.trim() || undefined,
+        estimatedReturnTime: estimatedReturnTime.trim() || undefined,
         vehicleLabel: vehicleLabel.trim() || undefined,
         driverId: driverId || null,
+        recurrence: { enabled: recurring, weekdays: recurring ? recurrenceDays : [] },
         origin,
         destination,
         waypoints
@@ -440,6 +463,44 @@ function RouteFormModal({
             <Field label="Nombre de la ruta" value={name} onChangeText={setName} placeholder="Ej. Ruta Centro" />
             <Field label="Fecha (AAAA-MM-DD)" value={date} onChangeText={setDate} placeholder="2026-10-05" autoCapitalize="none" />
             <Field label="Hora de salida" value={startTime} onChangeText={setStartTime} placeholder="08:00" autoCapitalize="none" />
+            <Field label="Hora estimada de regreso" value={estimatedReturnTime} onChangeText={setEstimatedReturnTime} placeholder="14:00" autoCapitalize="none" />
+            <View style={styles.recurrenceCard}>
+              <Pressable
+                style={styles.recurrenceHeading}
+                onPress={() => {
+                  const next = !recurring;
+                  setRecurring(next);
+                  if (next && recurrenceDays.length === 0) setRecurrenceDays([new Date(`${date}T12:00:00`).getDay()]);
+                }}
+              >
+                <View style={[styles.recurrenceIcon, recurring && styles.recurrenceIconActive]}>
+                  {icon("repeat-outline", 21, recurring ? "white" : colors.blue)}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recurrenceTitle}>Ruta fija semanal</Text>
+                  <Text style={styles.recurrenceSubtitle}>{recurring ? "Se repetirá en los días seleccionados" : "Actívala para crear un horario permanente"}</Text>
+                </View>
+                <View style={[styles.toggle, recurring && styles.toggleActive]}><View style={[styles.toggleKnob, recurring && styles.toggleKnobActive]} /></View>
+              </Pressable>
+              {recurring && (
+                <View style={styles.weekDayRow}>
+                  {weekDays.map((day) => {
+                    const selected = recurrenceDays.includes(day.value);
+                    return (
+                      <Pressable
+                        accessibilityLabel={day.label}
+                        accessibilityState={{ selected }}
+                        key={day.value}
+                        style={[styles.weekDayButton, selected && styles.weekDayButtonActive]}
+                        onPress={() => setRecurrenceDays(selected ? recurrenceDays.filter((value) => value !== day.value) : [...recurrenceDays, day.value])}
+                      >
+                        <Text style={[styles.weekDayText, selected && styles.weekDayTextActive]}>{day.short}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
             <View style={styles.routePointSection}>
               <View>
                 <Text style={styles.cardTitle}>Puntos del recorrido</Text>
@@ -828,6 +889,8 @@ const styles = StyleSheet.create({
   endpointText: { flex: 1, color: colors.ink, fontSize: 12, fontWeight: "700" },
   endpointLine: { width: 2, height: 12, marginLeft: 6, marginVertical: 2, backgroundColor: colors.border },
   routePriorityAlert: { marginTop: 10, padding: 10, borderRadius: radius.sm, backgroundColor: colors.softRed, flexDirection: "row", alignItems: "center", gap: 9 },
+  recurringPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.softBlue },
+  recurringPillText: { color: colors.blue, fontSize: 9, fontWeight: "900" },
   routePriorityTitle: { color: colors.red, fontSize: 11, fontWeight: "900" },
   routePriorityText: { color: colors.muted, fontSize: 9, lineHeight: 13, marginTop: 2 },
   routeActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 4 },
@@ -837,6 +900,21 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(16,42,67,0.45)" },
   modalCard: { maxHeight: "92%", backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" },
   modalContent: { padding: 20, paddingBottom: 36, gap: 16 },
+  recurrenceCard: { padding: 13, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: "white", gap: 13 },
+  recurrenceHeading: { flexDirection: "row", alignItems: "center", gap: 11 },
+  recurrenceIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.softBlue },
+  recurrenceIconActive: { backgroundColor: colors.blue },
+  recurrenceTitle: { color: colors.ink, fontSize: 14, fontWeight: "900" },
+  recurrenceSubtitle: { color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
+  toggle: { width: 44, height: 26, borderRadius: 13, padding: 3, backgroundColor: colors.border },
+  toggleActive: { backgroundColor: colors.blue },
+  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: "white" },
+  toggleKnobActive: { alignSelf: "flex-end" },
+  weekDayRow: { flexDirection: "row", justifyContent: "space-between", gap: 5 },
+  weekDayButton: { flex: 1, aspectRatio: 1, maxHeight: 42, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" },
+  weekDayButtonActive: { backgroundColor: colors.blue, borderColor: colors.blue },
+  weekDayText: { color: colors.muted, fontSize: 12, fontWeight: "900" },
+  weekDayTextActive: { color: "white" },
   modalTitle: { color: colors.ink, fontSize: 24, fontWeight: "900" },
   modalClose: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: "white" },
   routePointSection: { gap: 12, padding: 13, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: "white" },
