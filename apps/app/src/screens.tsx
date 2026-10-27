@@ -698,6 +698,7 @@ const resourceConfig: Record<string, { title: string; subtitle: string; path?: s
   Notificaciones: { title: "Notificaciones", subtitle: "Eventos relevantes de la operación", path: "/notifications", icon: "notifications-outline" },
   Agenda: { title: "Agenda", subtitle: "Calendario operativo y rutas recurrentes", icon: "calendar-outline" },
   Monitor: { title: "Monitor", subtitle: "Ubicación actual de los repartidores", path: "/tracking/locations/latest", icon: "navigate-circle-outline" },
+  Actividad: { title: "Actividad", subtitle: "Historial de cambios realizados por los usuarios", path: "/activity", icon: "time-outline" },
   Reportes: { title: "Reportes", subtitle: "Indicadores de rutas, entregas y productividad", icon: "bar-chart-outline" },
   Configuración: { title: "Configuración", subtitle: "Preferencias generales del sistema", icon: "settings-outline" },
   Perfil: { title: "Mi perfil", subtitle: "Datos personales y estado de cuenta", icon: "person-circle-outline" },
@@ -781,7 +782,7 @@ export const adminNavigation = [
   { section: "Personas", items: [["Repartidores", "people-outline"], ["Clientes", "business-outline"]] },
   { section: "Logística", items: [["Domicilios", "location-outline"], ["Zonas", "grid-outline"], ["Productos", "cube-outline"]] },
   { section: "Comunicación", items: [["Solicitudes", "document-text-outline"], ["Chat", "chatbubbles-outline"]] },
-  { section: "Análisis", items: [["Reportes", "bar-chart-outline"], ["Configuración", "settings-outline"]] }
+  { section: "Análisis", items: [["Actividad", "time-outline"], ["Reportes", "bar-chart-outline"], ["Configuración", "settings-outline"]] }
 ] as const;
 
 export const driverNavigation = [

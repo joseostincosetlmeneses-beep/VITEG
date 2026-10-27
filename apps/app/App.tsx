@@ -27,7 +27,7 @@ import { ClientsScreen, CustomerRequestScreen, RequestsScreen } from "./src/Cust
 import { DriverLocationReporter } from "./src/DriverLocationReporter";
 import { AgendaScreen } from "./src/AgendaScreen";
 import { ChatScreen, type ChatScreenHandle } from "./src/ChatScreen";
-import { MonitorScreen, NotificationsScreen, ReportsScreen, SettingsScreen } from "./src/UtilityScreens";
+import { ActivityLogScreen, MonitorScreen, NotificationsScreen, ReportsScreen, SettingsScreen } from "./src/UtilityScreens";
 import { colors, radius } from "./src/theme";
 
 const logo = require("./assets/viteg-logo.png");
@@ -61,6 +61,7 @@ const adminMore: NavItem[] = [
   { label: "Zonas", icon: "grid-outline" },
   { label: "Productos", icon: "cube-outline" },
   { label: "Solicitudes", icon: "document-text-outline" },
+  { label: "Actividad", icon: "time-outline" },
   { label: "Reportes", icon: "bar-chart-outline" },
   { label: "Configuración", icon: "settings-outline" }
 ];
@@ -374,6 +375,8 @@ function Workspace({
           ? <MonitorScreen />
         : current === "Reportes" && user.role === "ADMIN"
           ? <ReportsScreen />
+        : current === "Actividad" && user.role === "ADMIN"
+          ? <ActivityLogScreen />
         : current === "Configuración" || current === "Perfil"
           ? <SettingsScreen user={user} onLogout={onLogout} profile={current === "Perfil"} />
         : current === "Solicitudes" && user.role === "ADMIN"

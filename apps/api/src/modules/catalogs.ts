@@ -4,8 +4,9 @@ import { z } from "zod";
 import { asyncHandler, AppError } from "../lib/http.js";
 import { allowRoles, requireAuth } from "../middleware/auth.js";
 import { Customer, CustomerAddress, Product, Zone } from "../models/index.js";
+import { documentLabel, recordActivity } from "../lib/activity.js";
 
-function crudRouter(model: Model<any>, populate?: string) {
+function crudRouter(model: Model<any>, entityType: string, entityName: string, populate?: string) {
   const router = Router();
   router.use(requireAuth);
   router.get(
@@ -31,6 +32,10 @@ function crudRouter(model: Model<any>, populate?: string) {
     allowRoles("ADMIN"),
     asyncHandler(async (request, response) => {
       const document = await model.create({ ...request.body, tenantId: "default" });
+      await recordActivity({
+        actor: request.user!, action: "CREATE", entityType, entityId: document._id,
+        entityLabel: documentLabel(document), summary: `añadió ${entityName} “${documentLabel(document)}”`
+      });
       response.status(201).json({ data: document });
     })
   );
@@ -44,6 +49,10 @@ function crudRouter(model: Model<any>, populate?: string) {
         { new: true, runValidators: true }
       );
       if (!document) throw new AppError(404, "Registro no encontrado");
+      await recordActivity({
+        actor: request.user!, action: "UPDATE", entityType, entityId: document._id,
+        entityLabel: documentLabel(document), summary: `editó ${entityName} “${documentLabel(document)}”`
+      });
       response.json({ data: document });
     })
   );
@@ -53,6 +62,10 @@ function crudRouter(model: Model<any>, populate?: string) {
     asyncHandler(async (request, response) => {
       const document = await model.findOneAndDelete({ _id: request.params.id, tenantId: "default" });
       if (!document) throw new AppError(404, "Registro no encontrado");
+      await recordActivity({
+        actor: request.user!, action: "DELETE", entityType, entityId: document._id,
+        entityLabel: documentLabel(document), summary: `eliminó ${entityName} “${documentLabel(document)}”`
+      });
       response.status(204).send();
     })
   );
@@ -118,6 +131,10 @@ customersRouter.post(
         location: { latitude: input.location.latitude, longitude: input.location.longitude },
         status: "ACTIVE"
       });
+      await recordActivity({
+        actor: request.user!, action: "CREATE", entityType: "Customer", entityId: customer._id,
+        entityLabel: input.name, summary: `añadió el cliente “${input.name}”`
+      });
       response.status(201).json({ data: { ...customer.toObject(), name: input.name, address } });
     } catch (error) {
       await customer.deleteOne();
@@ -148,10 +165,14 @@ customersRouter.patch(
       { new: true, runValidators: true }
     );
     if (!address) throw new AppError(404, "Domicilio del cliente no encontrado");
+    await recordActivity({
+      actor: request.user!, action: "UPDATE", entityType: "Customer", entityId: customer._id,
+      entityLabel: input.name, summary: `editó el cliente “${input.name}”`
+    });
     response.json({ data: { ...customer.toObject(), name: input.name, address } });
   })
 );
-export const addressesRouter = crudRouter(CustomerAddress, "customerId zoneId");
-export const productsRouter = crudRouter(Product);
-export const zonesRouter = crudRouter(Zone);
+export const addressesRouter = crudRouter(CustomerAddress, "CustomerAddress", "el domicilio", "customerId zoneId");
+export const productsRouter = crudRouter(Product, "Product", "el producto");
+export const zonesRouter = crudRouter(Zone, "Zone", "la zona");
 

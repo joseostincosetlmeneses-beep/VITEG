@@ -142,6 +142,91 @@ export function MonitorScreen() {
   );
 }
 
+const activityIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
+  CREATE: "add-circle-outline",
+  UPDATE: "create-outline",
+  DELETE: "trash-outline",
+  ASSIGN: "person-add-outline",
+  STATUS: "swap-horizontal-outline",
+  REQUEST: "document-text-outline",
+  APPROVE: "checkmark-circle-outline",
+  REJECT: "close-circle-outline",
+  DELIVERY: "cube-outline"
+};
+
+const activityTones: Record<string, string> = {
+  CREATE: colors.green,
+  UPDATE: colors.blue,
+  DELETE: colors.red,
+  ASSIGN: colors.sky,
+  STATUS: colors.amber,
+  REQUEST: colors.blue,
+  APPROVE: colors.green,
+  REJECT: colors.red,
+  DELIVERY: colors.green
+};
+
+export function ActivityLogScreen() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setRows(await api.list("/activity?limit=150"));
+    } catch (error) {
+      Alert.alert("Registro de actividad", error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  if (loading && rows.length === 0) return <Loading />;
+  return (
+    <ScrollView
+      contentContainerStyle={styles.page}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
+    >
+      <SectionTitle title="Registro de actividad" subtitle="Cambios realizados por administradores y repartidores" />
+      <Card>
+        <View style={styles.activitySummary}>
+          <View style={styles.activitySummaryIcon}>{icon("shield-checkmark-outline", 24)}</View>
+          <View style={styles.flex}><Text style={styles.cardTitleNoMargin}>{rows.length} movimientos recientes</Text><Text style={styles.rowMeta}>Los registros se guardan automáticamente</Text></View>
+        </View>
+      </Card>
+      <Card>
+        {rows.length === 0 ? (
+          <Empty iconName="time-outline" text="Los próximos cambios aparecerán en este registro." />
+        ) : rows.map((row, index) => {
+          const tone = activityTones[row.action] ?? colors.blue;
+          return (
+            <View key={row._id ?? index} style={styles.activityRow}>
+              <View style={[styles.activityLine, index === rows.length - 1 && { backgroundColor: "transparent" }]} />
+              <View style={[styles.activityIcon, { backgroundColor: `${tone}18` }]}>
+                {icon(activityIcons[row.action] ?? "ellipse-outline", 20, tone)}
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.activityText}><Text style={styles.activityActor}>{row.actorName ?? "Usuario"}</Text> {row.summary}</Text>
+                <View style={styles.activityMeta}>
+                  <Text style={styles.time}>{relativeDate(row.createdAt)}</Text>
+                  {!!row.entityType && <Text style={styles.entityTag}>{entityName(row.entityType)}</Text>}
+                </View>
+              </View>
+            </View>
+          );
+        })}
+      </Card>
+    </ScrollView>
+  );
+}
+
+function entityName(value: string) {
+  const names: Record<string, string> = {
+    Customer: "Cliente", CustomerAddress: "Domicilio", Product: "Producto", Zone: "Zona",
+    Route: "Ruta", RouteStop: "Parada", User: "Usuario", AddressRequest: "Solicitud", Delivery: "Entrega"
+  };
+  return names[value] ?? value;
+}
+
 export function ReportsScreen() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [routes, setRoutes] = useState<any[]>([]);
@@ -255,6 +340,7 @@ const styles = StyleSheet.create({
   page: { padding: 16, gap: 14 },
   flex: { flex: 1 },
   cardTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", marginBottom: 10 },
+  cardTitleNoMargin: { color: colors.ink, fontSize: 16, fontWeight: "900" },
   notification: { minHeight: 78, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: 1, borderBottomColor: "#EDF2F7" },
   notificationUnread: { backgroundColor: "#F8FBFF", marginHorizontal: -10, paddingHorizontal: 10, borderRadius: 10 },
   unreadTitle: { color: colors.blue },
@@ -266,6 +352,15 @@ const styles = StyleSheet.create({
   liveRow: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.softGreen },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.green },
   liveText: { color: colors.green, fontSize: 10, fontWeight: "900" },
+  activitySummary: { flexDirection: "row", alignItems: "center", gap: 12 },
+  activitySummaryIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.softBlue },
+  activityRow: { minHeight: 88, flexDirection: "row", alignItems: "flex-start", gap: 12, position: "relative", paddingBottom: 14 },
+  activityLine: { position: "absolute", left: 20, top: 42, bottom: 0, width: 2, backgroundColor: colors.border },
+  activityIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", zIndex: 1 },
+  activityText: { color: colors.ink, fontSize: 13, lineHeight: 19, paddingTop: 2 },
+  activityActor: { fontWeight: "900" },
+  activityMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 7 },
+  entityTag: { color: colors.blue, backgroundColor: colors.softBlue, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, fontSize: 9, fontWeight: "800", overflow: "hidden" },
   dataRow: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: 1, borderBottomColor: "#EDF2F7", paddingVertical: 9 },
   count: { color: colors.ink, fontSize: 20, fontWeight: "900" },
   metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },

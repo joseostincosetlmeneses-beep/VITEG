@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AppError, asyncHandler } from "../lib/http.js";
 import { allowRoles, requireAuth } from "../middleware/auth.js";
 import { User } from "../models/index.js";
+import { recordActivity } from "../lib/activity.js";
 
 const createUserSchema = z.object({
   firstName: z.string().min(2),
@@ -42,6 +43,11 @@ usersRouter.post(
       tenantId: "default",
       status: "ACTIVE"
     });
+    const name = `${user.firstName} ${user.lastName}`.trim();
+    await recordActivity({
+      actor: request.user!, action: "CREATE", entityType: "User", entityId: user._id,
+      entityLabel: name, targetUserId: user._id, summary: `añadió al usuario ${name} como ${user.role === "ADMIN" ? "administrador" : "repartidor"}`
+    });
     response.status(201).json({ data: user, message: "Usuario creado" });
   })
 );
@@ -56,6 +62,11 @@ usersRouter.patch(
       { new: true, runValidators: true }
     );
     if (!user) throw new AppError(404, "Usuario no encontrado");
+    const name = `${user.firstName} ${user.lastName}`.trim();
+    await recordActivity({
+      actor: request.user!, action: "STATUS", entityType: "User", entityId: user._id,
+      entityLabel: name, targetUserId: user._id, summary: `cambió el estado de ${name} a ${status.toLowerCase()}`
+    });
     response.json({ data: user });
   })
 );

@@ -302,6 +302,23 @@ const notificationSchema = new Schema(
   options
 );
 
+const activityLogSchema = new Schema(
+  {
+    tenantId: { type: String, required: true, default: "default", index: true },
+    actorId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    actorName: { type: String, required: true },
+    action: { type: String, required: true, index: true },
+    entityType: { type: String, required: true, index: true },
+    entityId: Schema.Types.ObjectId,
+    entityLabel: String,
+    targetUserId: { type: Schema.Types.ObjectId, ref: "User" },
+    summary: { type: String, required: true },
+    metadata: Schema.Types.Mixed
+  },
+  options
+);
+activityLogSchema.index({ tenantId: 1, createdAt: -1 });
+
 // Mongoose's dynamic model registry loses the concrete schema generic during
 // hot reload. The explicit `any` keeps watch mode and production builds aligned;
 // validation remains enforced by the schemas above and Zod at the API boundary.
@@ -318,3 +335,4 @@ export const DriverLocation: any = models.DriverLocation || model("DriverLocatio
 export const Conversation: any = models.Conversation || model("Conversation", conversationSchema);
 export const Message: any = models.Message || model("Message", messageSchema);
 export const Notification: any = models.Notification || model("Notification", notificationSchema);
+export const ActivityLog: any = models.ActivityLog || model("ActivityLog", activityLogSchema);

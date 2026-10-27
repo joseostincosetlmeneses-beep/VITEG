@@ -4,6 +4,8 @@ import { canTransitionRoute, type DeliveryStatus, type RouteStatus } from "@vite
 import { AppError, asyncHandler } from "../lib/http.js";
 import { allowRoles, requireAuth } from "../middleware/auth.js";
 import { Delivery, Notification, Route, RouteStop } from "../models/index.js";
+import { User } from "../models/index.js";
+import { recordActivity } from "../lib/activity.js";
 
 const createRouteSchema = z.object({
   name: z.string().min(3),
@@ -98,6 +100,15 @@ distributionRouter.post(
         entityId: route._id
       });
     }
+    const assignedDriver = input.driverId
+      ? await User.findOne({ _id: input.driverId, tenantId: "default" }).select("firstName lastName").lean()
+      : null;
+    const driverName = assignedDriver ? `${assignedDriver.firstName} ${assignedDriver.lastName}`.trim() : "";
+    await recordActivity({
+      actor: request.user!, action: input.driverId ? "ASSIGN" : "CREATE", entityType: "Route", entityId: route._id,
+      entityLabel: route.name, targetUserId: input.driverId,
+      summary: input.driverId ? `creó y asignó la ruta “${route.name}” a ${driverName}` : `creó la ruta “${route.name}”`
+    });
     response.status(201).json({ data: route });
   })
 );
@@ -134,6 +145,14 @@ distributionRouter.patch(
     }
 
     await route.populate("driverId", "firstName lastName phone");
+    const driverName = route.driverId ? `${route.driverId.firstName ?? ""} ${route.driverId.lastName ?? ""}`.trim() : "";
+    await recordActivity({
+      actor: request.user!, action: input.driverId && input.driverId !== previousDriverId ? "ASSIGN" : "UPDATE",
+      entityType: "Route", entityId: route._id, entityLabel: route.name, targetUserId: input.driverId,
+      summary: input.driverId && input.driverId !== previousDriverId
+        ? `asignó la ruta “${route.name}” a ${driverName}`
+        : `editó la ruta “${route.name}”`
+    });
     response.json({ data: route, message: "Ruta actualizada" });
   })
 );
@@ -149,6 +168,10 @@ distributionRouter.delete(
     }
     await RouteStop.deleteMany({ routeId: route._id, tenantId: "default" });
     await route.deleteOne();
+    await recordActivity({
+      actor: request.user!, action: "DELETE", entityType: "Route", entityId: route._id,
+      entityLabel: route.name, summary: `eliminó la ruta “${route.name}”`
+    });
     response.json({ data: { id: String(route._id) }, message: "Ruta eliminada" });
   })
 );
@@ -178,6 +201,10 @@ distributionRouter.post(
     const stop = await RouteStop.create({ ...input, routeId: route._id, tenantId: "default" });
     route.stopCount = await RouteStop.countDocuments({ routeId: route._id });
     await route.save();
+    await recordActivity({
+      actor: request.user!, action: "CREATE", entityType: "RouteStop", entityId: stop._id,
+      entityLabel: `Parada ${input.sequence}`, summary: `añadió la parada ${input.sequence} a la ruta “${route.name}”`
+    });
     response.status(201).json({ data: stop });
   })
 );
@@ -198,6 +225,10 @@ distributionRouter.patch(
     if (status === "IN_PROGRESS" && !route.startedAt) route.startedAt = new Date();
     if (status === "COMPLETED") route.completedAt = new Date();
     await route.save();
+    await recordActivity({
+      actor: request.user!, action: "STATUS", entityType: "Route", entityId: route._id,
+      entityLabel: route.name, summary: `cambió la ruta “${route.name}” al estado ${status.replaceAll("_", " ").toLowerCase()}`
+    });
     response.json({ data: route });
   })
 );
@@ -250,6 +281,10 @@ distributionRouter.post(
       status: { $in: ["DELIVERED", "PARTIALLY_DELIVERED", "FAILED", "SKIPPED"] }
     });
     await route.save();
+    await recordActivity({
+      actor: request.user!, action: "DELIVERY", entityType: "Delivery", entityId: delivery._id,
+      entityLabel: route.name, summary: `registró una entrega ${input.status.toLowerCase()} en la ruta “${route.name}”`
+    });
     response.status(201).json({ data: delivery });
   })
 );

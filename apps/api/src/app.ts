@@ -11,6 +11,7 @@ import { distributionRouter } from "./modules/distribution.js";
 import { messagingRouter } from "./modules/messaging.js";
 import { dashboardRouter, notificationsRouter, requestsRouter, trackingRouter } from "./modules/operations.js";
 import { usersRouter } from "./modules/users.js";
+import { activityRouter } from "./modules/activity.js";
 
 export const app = express();
 app.use(helmet());
@@ -32,6 +33,7 @@ app.use("/api/address-requests", requestsRouter);
 app.use("/api/tracking", trackingRouter);
 app.use("/api/messaging", messagingRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/activity", activityRouter);
 app.use(notFound);
 app.use(errorHandler);
 

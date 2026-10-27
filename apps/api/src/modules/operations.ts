@@ -12,6 +12,7 @@ import {
   Route,
   User
 } from "../models/index.js";
+import { recordActivity } from "../lib/activity.js";
 
 const requestSchema = z.object({
   customerData: z.object({
@@ -84,6 +85,11 @@ requestsRouter.post(
         entityId: document._id
       }))
     );
+    const customerName = input.customerData.businessName || `${input.customerData.firstName ?? ""} ${input.customerData.lastName ?? ""}`.trim();
+    await recordActivity({
+      actor: request.user!, action: "REQUEST", entityType: "AddressRequest", entityId: document._id,
+      entityLabel: customerName, summary: `solicitó registrar al cliente “${customerName}”`
+    });
     response.status(201).json({ data: document });
   })
 );
@@ -124,6 +130,13 @@ requestsRouter.patch(
       body: input.rejectionReason,
       entityType: "AddressRequest",
       entityId: document._id
+    });
+    const customerName = document.customerData.businessName || `${document.customerData.firstName ?? ""} ${document.customerData.lastName ?? ""}`.trim();
+    await recordActivity({
+      actor: request.user!, action: input.status === "APPROVED" ? "APPROVE" : "REJECT",
+      entityType: "AddressRequest", entityId: document._id, entityLabel: customerName,
+      targetUserId: document.requestedBy,
+      summary: `${input.status === "APPROVED" ? "aprobó" : "rechazó"} la solicitud del cliente “${customerName}”`
     });
     response.json({ data: document });
   })
